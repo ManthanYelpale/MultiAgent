@@ -5,7 +5,7 @@ from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.sql import SQLGenerateRequest, SQLQueryResult
-from app.services.sql_service import generate_and_execute_sql
+from app.services.sql import generate_and_execute_sql
 
 router = APIRouter(prefix="/sql", tags=["sql"])
 

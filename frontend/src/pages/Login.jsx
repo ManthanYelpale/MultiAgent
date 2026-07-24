@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Mail, Lock, User, ShieldCheck, ShieldAlert, CheckCircle2, Loader2, LogOut } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
-export default function AuthCard() {
+export default function Login() {
   const { login, signup, logout, user, token, loading: authLoading } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();

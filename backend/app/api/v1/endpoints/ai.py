@@ -7,8 +7,8 @@ from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models.user import User
 from app.models.chat import ChatHistory
-from app.services.chat_orchestrator import chat_orchestrator
-from app.services.ml_service import generate_kpi_insight
+from app.services.chat_bot import chat_orchestrator
+from app.services.ml import generate_kpi_insight
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 

@@ -17,7 +17,7 @@ from app.schemas.analytics import (
     InsightsRequest,
     InsightsResponse,
 )
-from app.services.ml_service import detect_anomalies, generate_ai_insights, run_forecast
+from app.services.ml import detect_anomalies, generate_ai_insights, run_forecast
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 

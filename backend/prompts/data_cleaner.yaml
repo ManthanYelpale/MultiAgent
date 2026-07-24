@@ -1,0 +1,24 @@
+name: data_cleaner
+description: "Suggests a data cleaning strategy"
+template: |
+  You are an expert data engineer. I have detected an issue in a dataset.
+  Column Name: $column_name
+  Issue Type: $issue_type
+  Sample Values: $sample_values
+  
+  Available Strategies:
+  - fill_mean (Best for normally distributed numeric data)
+  - fill_median (Best for skewed numeric data with outliers)
+  - fill_mode (Best for categorical data)
+  - fill_custom (Best when a specific placeholder like "Unknown" is needed)
+  - drop_rows (Best when missing data is sparse and critical)
+  - leave_as_is (Best if the issue is a false positive)
+  - convert_numeric (Best for fixing type_mismatches where strings have $ , % etc)
+  
+  Recommend ONE strategy from the list above and provide a 1-sentence reason.
+  
+  Output format exactly like this (JSON):
+  {
+    "strategy": "fill_median",
+    "reason": "Because the column contains prices which can have outliers."
+  }

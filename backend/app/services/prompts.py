@@ -34,4 +34,4 @@ class PromptManager:
         template = Template(template_str)
         return template.safe_substitute(**kwargs)
 
-prompt_manager = PromptManager()
+prompts = PromptManager()

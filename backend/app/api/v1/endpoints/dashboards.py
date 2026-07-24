@@ -8,6 +8,7 @@ from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models.user import User
 from app.models.dashboard import Dashboard, Chart
+from app.models.cleaning import CleanedDataset
 from app.crud.uploaded_file import get_file_for_user
 from app.schemas.dashboard import DashboardResponse, ChartDataRequest, ChartLayoutUpdate, ChartResponse, ChartCreate
 from app.services.storage import get_storage_service
@@ -85,10 +86,19 @@ def get_chart_data(
         raise HTTPException(status_code=404, detail="File not found")
 
     storage = get_storage_service()
-    path = storage.get_file_path(current_user.id, db_file.stored_filename)
-
+    
+    cleaned = db.query(CleanedDataset).filter(CleanedDataset.file_id == req.file_id).first()
+    if cleaned and not cleaned.skipped and cleaned.storage_path:
+        path = storage.get_file_path(current_user.id, cleaned.storage_path)
+    else:
+        path = storage.get_file_path(current_user.id, db_file.stored_filename)
+        
+    warnings = []
+    if cleaned and cleaned.skipped:
+        warnings.append("⚠ Cleaning was skipped. Data may contain anomalies.")
+        
     try:
-        if db_file.file_type == "csv":
+        if path.endswith(".csv"):
             df = pd.read_csv(path)
         else:
             df = pd.read_excel(path)
@@ -112,11 +122,19 @@ def get_chart_data(
         if isinstance(val, (np.int64, np.float64)):
             val = val.item()
             
-        return {"value": round(val, 2) if isinstance(val, float) else val}
+        result = {"value": round(val, 2) if isinstance(val, float) else val}
+        return {
+            "chart_type": req.chart_type,
+            "x_column": req.x_column,
+            "y_column": req.y_column,
+            "agg_function": req.agg_function,
+            "data": result,
+            "warnings": warnings
+        }
 
     # Groupby aggregation
     if not req.x_column or req.x_column not in df.columns:
-        return []
+        return {"data": [], "warnings": warnings}
 
     # Handle datetime truncating if it's a date column for cleaner lines
     if pd.api.types.is_datetime64_any_dtype(df[req.x_column]):
@@ -126,7 +144,7 @@ def get_chart_data(
         agg_df = df.groupby(req.x_column).size().reset_index(name='value')
     else:
         if not req.y_column or req.y_column not in df.columns:
-            return []
+            return {"data": [], "warnings": warnings}
         
         # Coerce to numeric for sum and mean
         if req.agg_function in ["sum", "mean"]:
@@ -137,7 +155,7 @@ def get_chart_data(
         elif req.agg_function == "mean":
             agg_df = df.groupby(req.x_column)[req.y_column].mean().reset_index(name='value')
         else:
-            return []
+            return {"data": [], "warnings": warnings}
 
     # Format for recharts
     agg_df = agg_df.fillna("Unknown")
@@ -156,7 +174,14 @@ def get_chart_data(
         # Top 20 to avoid crashing browser
         result = result[:20]
 
-    return result
+    return {
+        "chart_type": req.chart_type,
+        "x_column": req.x_column,
+        "y_column": req.y_column,
+        "agg_function": req.agg_function,
+        "data": result,
+        "warnings": warnings
+    }
 
 @router.put("/charts/{chart_id}/layout")
 def update_chart_layout(

@@ -1,14 +1,14 @@
 import React from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
-import AuthCard from "./pages/AuthCard";
+import Login from "./pages/Login";
 import Home from "./pages/Home";
 import Chat from "./pages/Chat";
 import Files from "./pages/Files";
 import Analytics from "./pages/Analytics";
 import Account from "./pages/Account";
 import Preferences from "./pages/Preferences";
-import Navbar from "./components/Navbar";
+import Nav from "./components/Nav";
 
 // Protected Route wrapper component
 function ProtectedRoute({ children }) {
@@ -25,7 +25,7 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
-// Layout wrapper to conditionally show Navbar on non-auth pages
+// Layout wrapper to conditionally show Nav on non-auth pages
 function AppLayout() {
   const location = useLocation();
   const isAuthPage = location.pathname === "/login" || location.pathname === "/signup";
@@ -33,12 +33,12 @@ function AppLayout() {
   return (
     <div className="min-h-screen flex flex-col text-slate-900 bg-[#fafafa]">
       {/* Conditionally render navbar */}
-      {!isAuthPage && <Navbar />}
+      {!isAuthPage && <Nav />}
 
       <main className={`flex-grow ${isAuthPage ? "flex flex-col justify-center items-center px-4 py-8" : ""}`}>
         <Routes>
-          <Route path="/login" element={<AuthCard />} />
-          <Route path="/signup" element={<AuthCard />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Login />} />
 
           {/* Protected Application Routes */}
           <Route

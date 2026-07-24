@@ -13,8 +13,8 @@ except ImportError:
     IsolationForest = None
     LinearRegression = None
 
-from app.services.groq_service import groq_service
-from app.services.prompt_manager import prompt_manager
+from app.services.llm import llm
+from app.services.prompts import prompts
 
 
 def run_forecast(
@@ -174,7 +174,7 @@ def generate_ai_insights(
         {"role": "user", "content": prompt},
     ]
 
-    return groq_service.chat_completion(messages, temperature=0.5, max_tokens=512)
+    return llm.chat_completion(messages, temperature=0.5, max_tokens=512)
 
 def generate_kpi_insight(
     metric_name: str,
@@ -182,7 +182,7 @@ def generate_kpi_insight(
     agg_function: str,
     dataset_name: str
 ) -> str:
-    system_prompt = prompt_manager.render(
+    system_prompt = prompts.render(
         "insight_generator",
         metric_name=metric_name,
         metric_value=metric_value,
@@ -190,4 +190,4 @@ def generate_kpi_insight(
         dataset_name=dataset_name
     )
     messages = [{"role": "system", "content": system_prompt}]
-    return groq_service.chat_completion(messages, temperature=0.3, max_tokens=100)
+    return llm.chat_completion(messages, temperature=0.3, max_tokens=100)

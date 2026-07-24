@@ -21,8 +21,8 @@ try:
 except ImportError:
     SentenceTransformer = None
 
-from app.services.groq_service import groq_service
-from app.services.prompt_manager import prompt_manager
+from app.services.llm import llm
+from app.services.prompts import prompts
 
 
 class RAGService:
@@ -186,14 +186,14 @@ class RAGService:
             ]
         )
 
-        system_prompt = prompt_manager.render("rag_agent", context_str=context_str)
+        system_prompt = prompts.render("rag_agent", context_str=context_str)
 
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": question},
         ]
 
-        answer = groq_service.chat_completion(messages, temperature=0.2, max_tokens=1024)
+        answer = llm.chat_completion(messages, temperature=0.2, max_tokens=1024)
 
         return {
             "question": question,

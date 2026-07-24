@@ -11,7 +11,7 @@ from app.crud.uploaded_file import get_file_for_user
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.report import ReportResponse, WeeklyReportRequest
-from app.services.report_service import REPORTS_DIR, generate_weekly_report_pipeline
+from app.services.report import REPORTS_DIR, generate_weekly_report_pipeline
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 

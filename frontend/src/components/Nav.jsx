@@ -10,7 +10,7 @@ const navLinks = [
   { path: "/analytics", label: "Analytics" },
 ];
 
-export default function Navbar() {
+export default function Nav() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();

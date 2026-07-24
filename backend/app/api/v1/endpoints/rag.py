@@ -9,7 +9,7 @@ from app.crud.uploaded_file import get_file_for_user
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.rag import IndexFileResponse, RAGQueryRequest, RAGQueryResponse
-from app.services.rag_service import rag_service
+from app.services.rag import rag_service
 
 router = APIRouter(prefix="/rag", tags=["rag"])
 

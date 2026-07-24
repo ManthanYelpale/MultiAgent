@@ -10,13 +10,14 @@ import { useAuth } from "../../context/AuthContext";
 const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:8000/api/v1";
 const COLORS = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#ec4899'];
 
-export default function ChartRenderer({ chart, fileId }) {
+export default function Chart({ chart, fileId }) {
   const { token } = useAuth();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [insight, setInsight] = useState(null);
   const [insightLoading, setInsightLoading] = useState(false);
+  const [warnings, setWarnings] = useState([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -36,8 +37,10 @@ export default function ChartRenderer({ chart, fileId }) {
           })
         });
         if (!res.ok) throw new Error('Failed to load chart data');
-        fetchedJson = await res.json();
-        setData(fetchedJson);
+        const payload = await res.json();
+        fetchedJson = payload.data;
+        setData(payload.data);
+        if (payload.warnings) setWarnings(payload.warnings);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -74,7 +77,12 @@ export default function ChartRenderer({ chart, fileId }) {
 
   if (chart.chart_type === 'kpi') {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-center px-4">
+      <div className="flex flex-col items-center justify-center h-full text-center px-4 relative">
+        {warnings.length > 0 && (
+          <div className="absolute top-2 right-2 text-amber-500" title={warnings.join("\n")}>
+            <AlertCircle size={14} />
+          </div>
+        )}
         <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">{chart.agg_function} of {chart.y_column}</p>
         <p className="text-3xl font-bold text-slate-800 mt-1">
           {typeof data.value === 'number' ? data.value.toLocaleString() : data.value}
@@ -95,7 +103,12 @@ export default function ChartRenderer({ chart, fileId }) {
   }
 
   return (
-    <div className="w-full h-full pt-4 pb-2 pr-4">
+    <div className="w-full h-full pt-4 pb-2 pr-4 relative">
+      {warnings.length > 0 && (
+        <div className="absolute top-2 left-2 text-amber-500 z-10" title={warnings.join("\n")}>
+          <AlertCircle size={14} />
+        </div>
+      )}
       <h4 className="text-[11px] font-semibold text-slate-500 text-center mb-2 uppercase tracking-wide">
         {chart.chart_type === 'pie' ? `${chart.agg_function} by ${chart.x_column}` : `${chart.y_column} by ${chart.x_column}`}
       </h4>

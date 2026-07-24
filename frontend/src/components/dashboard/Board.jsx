@@ -4,14 +4,16 @@ import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import { Loader2, Plus, X } from 'lucide-react';
 import { useAuth } from "../../context/AuthContext";
-import ChartRenderer from './ChartRenderer';
+import Chart from './Chart';
+import Review from './Review';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:8000/api/v1";
 
-export default function DashboardView({ fileId, columnsPreview }) {
+export default function Board({ fileId, columnsPreview }) {
   const { token } = useAuth();
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [cleaningStatus, setCleaningStatus] = useState(null); // 'pending', 'skipped', 'applied'
   
   const [showModal, setShowModal] = useState(false);
   const [newChart, setNewChart] = useState({ chart_type: 'bar', x_column: '', y_column: '', agg_function: 'sum' });
@@ -21,6 +23,19 @@ export default function DashboardView({ fileId, columnsPreview }) {
 
   const fetchDashboard = async () => {
     try {
+      // First check cleaning status
+      const cleanRes = await fetch(`${API_BASE_URL}/cleaning/file/${fileId}/status`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (cleanRes.ok) {
+        const { status } = await cleanRes.json();
+        setCleaningStatus(status);
+        if (status === 'pending') {
+          setLoading(false);
+          return; // Stop here, render Review
+        }
+      }
+
       const res = await fetch(`${API_BASE_URL}/dashboards/file/${fileId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -77,6 +92,11 @@ export default function DashboardView({ fileId, columnsPreview }) {
   };
 
   if (loading) return <div className="py-12 flex justify-center"><Loader2 className="animate-spin text-violet-600" /></div>;
+  
+  if (cleaningStatus === 'pending') {
+    return <Review fileId={fileId} onComplete={fetchDashboard} />;
+  }
+
   if (!dashboard) return <div className="py-12 text-center text-slate-500">Failed to load dashboard</div>;
 
   const layout = dashboard.charts.map(c => ({
@@ -125,7 +145,7 @@ export default function DashboardView({ fileId, columnsPreview }) {
                 >
                   <X size={12}/>
                 </button>
-                <ChartRenderer chart={chart} fileId={fileId} />
+                <Chart chart={chart} fileId={fileId} />
               </div>
             ))}
           </GridLayout>

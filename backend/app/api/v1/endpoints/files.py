@@ -14,7 +14,7 @@ from app.db.session import get_db
 from app.models.user import User
 from app.schemas.uploaded_file import UploadedFileOut
 from app.services.storage import get_storage_service
-from app.services.profiler import run_profiler
+from app.services.profile import run_profiler
 
 router = APIRouter(prefix="/files", tags=["files"])
 

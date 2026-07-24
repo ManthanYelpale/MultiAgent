@@ -7,7 +7,7 @@ from app.crud.uploaded_file import get_file_for_user
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.chat import ChatRequest, ChatResponse, DataQARequest
-from app.services.groq_service import groq_service
+from app.services.llm import llm
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -18,7 +18,7 @@ def chat_message(
     current_user: User = Depends(get_current_user),
 ):
     messages = [{"role": msg.role, "content": msg.content} for msg in request.messages]
-    reply = groq_service.chat_completion(
+    reply = llm.chat_completion(
         messages=messages,
         temperature=request.temperature,
         max_tokens=request.max_tokens,
@@ -52,5 +52,5 @@ def data_qa(
         {"role": "user", "content": request.question},
     ]
 
-    reply = groq_service.chat_completion(messages=messages, temperature=0.3, max_tokens=1024)
+    reply = llm.chat_completion(messages=messages, temperature=0.3, max_tokens=1024)
     return ChatResponse(reply=reply, model=settings.GROQ_MODEL)

@@ -51,4 +51,4 @@ class GroqService:
             return f"[Groq LLM Error]: {exc}"
 
 
-groq_service = GroqService()
+llm = GroqService()

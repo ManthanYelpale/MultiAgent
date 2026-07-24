@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Download
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import DashboardView from "../components/dashboard/DashboardView";
+import Board from "../components/dashboard/Board";
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:8000/api/v1";
 
@@ -188,7 +188,7 @@ export default function Analytics() {
 
           {/* Dashboard Tab */}
           {activeTab === "dashboard" && (
-            <DashboardView fileId={selectedFile.id} columnsPreview={selectedFile.columns_preview} />
+            <Board fileId={selectedFile.id} columnsPreview={selectedFile.columns_preview} />
           )}
 
           {/* Insights Tab */}

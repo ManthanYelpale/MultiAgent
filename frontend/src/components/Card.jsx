@@ -1,6 +1,6 @@
 import React from "react";
 
-export default function GlassCard({ children, className = "" }) {
+export default function Card({ children, className = "" }) {
   return (
     <div
       className={`relative w-full max-w-md overflow-hidden rounded-2xl border border-slate-200/80 bg-white/80 p-8 shadow-[0_10px_40px_rgba(15,23,42,0.05)] backdrop-blur-xl transition-all duration-300 hover:border-slate-300 hover:shadow-[0_15px_50px_rgba(15,23,42,0.08)] ${className}`}

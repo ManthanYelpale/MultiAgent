@@ -6,7 +6,7 @@ from sqlalchemy import engine_from_config, pool
 from app.core.config import settings
 from app.db.base import Base
 # Import all models so Alembic's autogenerate can see them
-from app.models import user, uploaded_file, dashboard, chat  # noqa: F401
+from app.models import user, uploaded_file, dashboard, chat, cleaning  # noqa: F401
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)

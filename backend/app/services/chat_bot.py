@@ -2,10 +2,10 @@ import logging
 from sqlalchemy.orm import Session
 
 from app.models.chat import ChatHistory
-from app.services.prompt_manager import prompt_manager
-from app.services.groq_service import groq_service
-from app.services.sql_service import generate_and_execute_sql
-from app.services.rag_service import rag_service
+from app.services.prompts import prompts
+from app.services.llm import llm
+from app.services.sql import generate_and_execute_sql
+from app.services.rag import rag_service
 
 logger = logging.getLogger(__name__)
 
@@ -39,13 +39,13 @@ class ChatOrchestrator:
         }
 
     def _classify_intent(self, message: str) -> str:
-        system_prompt = prompt_manager.render("intent_classifier")
+        system_prompt = prompts.render("intent_classifier")
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": message}
         ]
         try:
-            intent_raw = groq_service.chat_completion(messages, temperature=0.0, max_tokens=10).strip().lower()
+            intent_raw = llm.chat_completion(messages, temperature=0.0, max_tokens=10).strip().lower()
             if "sql" in intent_raw: return "sql"
             if "rag" in intent_raw: return "rag"
             return "general"
@@ -72,7 +72,7 @@ class ChatOrchestrator:
             messages.append({"role": msg["role"], "content": msg["content"]})
         messages.append({"role": "user", "content": message})
         
-        return groq_service.chat_completion(messages, temperature=0.5, max_tokens=500)
+        return llm.chat_completion(messages, temperature=0.5, max_tokens=500)
 
     def _store_exchange(self, db: Session, user_id: int, file_id: int | None, user_msg: str, ai_msg: str, intent: str):
         user_record = ChatHistory(user_id=user_id, file_id=file_id, role="user", content=user_msg)

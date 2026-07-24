@@ -33,7 +33,7 @@ except ImportError:
     Presentation = None
 
 from app.core.config import settings
-from app.services.ml_service import detect_anomalies, generate_ai_insights, run_forecast
+from app.services.ml import detect_anomalies, generate_ai_insights, run_forecast
 
 REPORTS_DIR = os.path.join(settings.UPLOAD_DIR, "reports")
 

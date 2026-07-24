@@ -5,8 +5,8 @@ from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 import json
 
-from app.services.groq_service import groq_service
-from app.services.prompt_manager import prompt_manager
+from app.services.llm import llm
+from app.services.prompts import prompts
 
 FORBIDDEN_KEYWORDS = [
     r"\bINSERT\b",
@@ -79,14 +79,14 @@ def execute_sandboxed_sql(db: Session, sql_query: str) -> tuple[list[str], list[
 
 def generate_and_execute_sql(db: Session, question: str, execute: bool = True) -> dict[str, Any]:
     schema_text = get_schema_summary(db)
-    system_prompt = prompt_manager.render("sql_agent", schema_text=schema_text)
+    system_prompt = prompts.render("sql_agent", schema_text=schema_text)
 
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": f"Question: {question}\nSQL Query:"},
     ]
 
-    raw_sql = groq_service.chat_completion(messages, temperature=0.1, max_tokens=300)
+    raw_sql = llm.chat_completion(messages, temperature=0.1, max_tokens=300)
     is_safe, sanitized_sql, error_msg = validate_and_sanitize_sql(raw_sql)
 
     if not is_safe:
@@ -114,13 +114,13 @@ def generate_and_execute_sql(db: Session, question: str, execute: bool = True) -
         
         summary = None
         if count > 0:
-            summary_prompt = prompt_manager.render(
+            summary_prompt = prompts.render(
                 "sql_summary", 
                 question=question, 
                 sql_query=sanitized_sql, 
                 results=json.dumps(rows[:5]) # limit context to top 5 rows
             )
-            summary = groq_service.chat_completion(
+            summary = llm.chat_completion(
                 [{"role": "user", "content": summary_prompt}], 
                 temperature=0.3, max_tokens=150
             )
