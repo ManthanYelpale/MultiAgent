@@ -191,7 +191,7 @@ export default function Review({ fileId, onComplete }) {
         <button 
           onClick={handleApply} 
           disabled={processing}
-          className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-white bg-violet-600 hover:bg-violet-700 rounded-xl transition-colors disabled:opacity-50 cursor-pointer"
+          className="uiverse-btn inline-flex items-center gap-2 disabled:opacity-50 cursor-pointer"
         >
           {processing ? <Loader2 size={16} className="animate-spin"/> : null}
           Apply Cleaning & Render

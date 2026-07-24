@@ -110,17 +110,17 @@ export default function Board({ fileId, columnsPreview }) {
 
   return (
     <div className="space-y-4 animate-show-panel">
-      <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200">
+      <div className="flex justify-between items-center py-2">
         <div>
-          <h2 className="font-semibold text-slate-800">{dashboard.name}</h2>
-          <p className="text-xs text-slate-500">{dashboard.charts.length} charts auto-generated</p>
+          <h2 className="text-lg font-bold text-slate-900">{dashboard.name}</h2>
+          <p className="text-sm text-slate-500">{dashboard.charts.length} charts auto-generated</p>
         </div>
-        <button onClick={() => setShowModal(true)} className="flex items-center gap-2 bg-violet-600 text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-violet-700">
-          <Plus size={14}/> Add Chart
+        <button onClick={() => setShowModal(true)} className="uiverse-btn inline-flex items-center gap-2">
+          <Plus size={16}/> Add Chart
         </button>
       </div>
 
-      <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 min-h-[500px]">
+      <div className="min-h-[500px] pt-4">
         {dashboard.charts.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-[400px] text-slate-400">
             <p>No charts in this dashboard yet.</p>
@@ -138,7 +138,7 @@ export default function Board({ fileId, columnsPreview }) {
             isResizable={true}
           >
             {dashboard.charts.map(chart => (
-              <div key={chart.id.toString()} className="bg-white rounded-xl shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-200 overflow-hidden relative group">
+              <div key={chart.id.toString()} className="bg-white rounded-xl ring-1 ring-slate-200/50 shadow-sm hover:shadow-md hover:ring-violet-200/50 transition-all overflow-hidden relative group">
                 <button 
                   onClick={() => deleteChart(chart.id)}
                   className="absolute top-2 right-2 p-1.5 bg-red-50 text-red-500 rounded-md opacity-0 group-hover:opacity-100 transition-opacity z-10 hover:bg-red-100 cursor-pointer"
@@ -153,52 +153,75 @@ export default function Board({ fileId, columnsPreview }) {
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-2xl w-full max-w-md shadow-xl space-y-4">
-            <h3 className="font-bold text-lg text-slate-800">Add New Chart</h3>
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4">
+          <div className="flex flex-col bg-white rounded-3xl w-full max-w-md shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
             
-            <div>
-              <label className="text-[11px] font-semibold text-slate-500 uppercase">Chart Type</label>
-              <select className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-violet-500" value={newChart.chart_type} onChange={e => setNewChart({...newChart, chart_type: e.target.value})}>
-                <option value="bar">Bar Chart</option>
-                <option value="line">Line Chart</option>
-                <option value="pie">Pie Chart</option>
-                <option value="kpi">KPI Card</option>
-              </select>
-            </div>
+            <button 
+              onClick={() => setShowModal(false)}
+              className="absolute top-6 right-6 text-gray-400 hover:text-gray-900 transition-colors cursor-pointer"
+            >
+              <X size={20} />
+            </button>
 
-            {newChart.chart_type !== 'kpi' && (
-              <div>
-                <label className="text-[11px] font-semibold text-slate-500 uppercase">X-Axis (Group By)</label>
-                <select className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-violet-500" value={newChart.x_column} onChange={e => setNewChart({...newChart, x_column: e.target.value})}>
-                  <option value="">Select column...</option>
-                  {columns.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+            <div className="px-6 py-8 sm:p-10 sm:pb-6">
+              <div className="grid items-center justify-center w-full grid-cols-1 text-left">
+                <div>
+                  <h2 className="text-lg font-medium tracking-tighter text-gray-600 lg:text-3xl">
+                    Add Chart
+                  </h2>
+                  <p className="mt-2 text-sm text-gray-500">Configure your new visualization.</p>
+                </div>
+                
+                <div className="mt-8 space-y-5">
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Chart Type</label>
+                    <select className="w-full mt-1.5 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition-all cursor-pointer" value={newChart.chart_type} onChange={e => setNewChart({...newChart, chart_type: e.target.value})}>
+                      <option value="bar">Bar Chart</option>
+                      <option value="line">Line Chart</option>
+                      <option value="pie">Pie Chart</option>
+                      <option value="kpi">KPI Card</option>
+                    </select>
+                  </div>
+
+                  {newChart.chart_type !== 'kpi' && (
+                    <div>
+                      <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">X-Axis (Group By)</label>
+                      <select className="w-full mt-1.5 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition-all cursor-pointer" value={newChart.x_column} onChange={e => setNewChart({...newChart, x_column: e.target.value})}>
+                        <option value="">Select column...</option>
+                        {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Y-Axis (Value)</label>
+                    <select className="w-full mt-1.5 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition-all cursor-pointer" value={newChart.y_column} onChange={e => setNewChart({...newChart, y_column: e.target.value})}>
+                      <option value="">Select column...</option>
+                      {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Aggregation</label>
+                    <select className="w-full mt-1.5 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition-all cursor-pointer" value={newChart.agg_function} onChange={e => setNewChart({...newChart, agg_function: e.target.value})}>
+                      <option value="sum">Sum</option>
+                      <option value="mean">Average</option>
+                      <option value="count">Count</option>
+                      <option value="min">Min</option>
+                      <option value="max">Max</option>
+                    </select>
+                  </div>
+                </div>
               </div>
-            )}
-
-            <div>
-              <label className="text-[11px] font-semibold text-slate-500 uppercase">Y-Axis (Value)</label>
-              <select className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-violet-500" value={newChart.y_column} onChange={e => setNewChart({...newChart, y_column: e.target.value})}>
-                <option value="">Select column...</option>
-                {columns.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
             </div>
-
-            <div>
-              <label className="text-[11px] font-semibold text-slate-500 uppercase">Aggregation</label>
-              <select className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-violet-500" value={newChart.agg_function} onChange={e => setNewChart({...newChart, agg_function: e.target.value})}>
-                <option value="sum">Sum</option>
-                <option value="mean">Average</option>
-                <option value="count">Count</option>
-                <option value="min">Min</option>
-                <option value="max">Max</option>
-              </select>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-4 border-t mt-6">
-              <button onClick={() => setShowModal(false)} className="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer">Cancel</button>
-              <button onClick={addChart} className="px-4 py-2 text-xs font-semibold text-white bg-violet-600 hover:bg-violet-700 rounded-lg transition-colors cursor-pointer">Create Chart</button>
+            
+            <div className="flex px-6 pb-8 sm:px-10">
+              <button
+                onClick={addChart}
+                className="flex items-center justify-center w-full px-6 py-3.5 text-center text-white duration-200 bg-black border-2 border-black rounded-full hover:bg-transparent hover:text-black focus:outline-none focus-visible:outline-black text-sm font-semibold focus-visible:ring-black cursor-pointer shadow-md hover:shadow-none"
+              >
+                Create chart
+              </button>
             </div>
           </div>
         </div>

@@ -36,11 +36,13 @@ export default function Nav() {
   }, []);
 
   return (
-    <div className="sticky top-6 z-50 flex justify-center px-4 w-full pointer-events-none mb-6">
-      <header className="pointer-events-auto flex items-center justify-between px-2 py-2 bg-white/80 backdrop-blur-xl border border-gray-200/50 rounded-full shadow-lg w-full max-w-3xl">
+    <>
+      <div className="h-[72px] w-full shrink-0" /> {/* Spacer */}
+      <header className="fixed top-0 left-0 right-0 z-50 w-full bg-white/80 backdrop-blur-xl border-b border-gray-200/60 shadow-sm transition-all">
+        <div className="max-w-7xl mx-auto px-6 flex items-center justify-between py-3">
         
         {/* Nav Links */}
-        <nav className="flex items-center gap-1 pl-2">
+        <nav className="flex items-center gap-2">
           {navLinks.map((link) => (
             <Link
               key={link.path}
@@ -114,7 +116,8 @@ export default function Nav() {
             </div>
           )}
         </div>
+        </div>
       </header>
-    </div>
+    </>
   );
 }

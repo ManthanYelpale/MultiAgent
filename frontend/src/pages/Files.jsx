@@ -260,30 +260,37 @@ export default function Files() {
       </div>
 
       {/* Upload Zone */}
-      <label
-        onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
-        onDragLeave={() => setDragActive(false)}
-        onDrop={handleDrop}
-        className={`block border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-all ${
-          dragActive
-            ? "border-violet-400 bg-violet-50"
-            : "border-slate-200 hover:border-slate-300 bg-white"
-        }`}
-      >
-        <input type="file" className="hidden" accept=".csv,.xlsx,.xls,.pdf" onChange={handleFileInput} disabled={isUploading} />
-        {isUploading ? (
-          <div className="flex flex-col items-center gap-2">
-            <Loader2 size={28} className="animate-spin text-violet-600" />
-            <p className="text-sm font-medium text-slate-600">Uploading...</p>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-2">
-            <Upload size={28} className="text-slate-400" />
-            <p className="text-sm font-medium text-slate-700">Drop a file here or click to browse</p>
-            <p className="text-xs text-slate-400">CSV, Excel, PDF — max 25MB</p>
-          </div>
-        )}
-      </label>
+      <div className="flex justify-center w-full my-6">
+        <form className="w-fit h-fit flex items-center justify-center" onSubmit={(e) => e.preventDefault()}>
+          <label
+            onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+            onDragLeave={() => setDragActive(false)}
+            onDrop={handleDrop}
+            className={`cursor-pointer py-[30px] px-[70px] rounded-[40px] border-2 border-dashed transition-all duration-300 ${
+              dragActive 
+                ? "bg-violet-50 border-violet-400" 
+                : "bg-white border-slate-300 hover:border-slate-400"
+            }`}
+          >
+            <input type="file" className="hidden" accept=".csv,.xlsx,.xls,.pdf" onChange={handleFileInput} disabled={isUploading} />
+            <div className="flex flex-col items-center justify-center gap-[5px]">
+              {isUploading ? (
+                <>
+                  <Loader2 size={28} className="animate-spin text-slate-700" />
+                  <p className="font-semibold text-slate-700 mt-2">Uploading...</p>
+                </>
+              ) : (
+                <>
+                  <svg className="w-[50px] h-[50px] fill-[#525252] mb-[20px]" viewBox="0 0 1024 1024" focusable="false" data-icon="inbox" aria-hidden="true"><path d="M717 773.5c-30.8 0-60.6-5.8-88.7-16.8-27.4-10.7-52-25.7-73.4-44.5l-45.7-39.6-45.7 39.6c-21.4 18.8-46 33.8-73.4 44.5-28.1 11-57.9 16.8-88.7 16.8H144V250.5h736V773.5H717z m183-595H124c-22.1 0-40 17.9-40 40v672c0 22.1 17.9 40 40 40h776c22.1 0 40-17.9 40-40v-672c0-22.1-17.9-40-40-40z m-524.3 268h-74v152.9H205.1l146.4 145.4 146.4-145.4H401.5V446.5z m286.3-88.7h-74v152.9H517.1l146.4 145.4 146.4-145.4H688.3v-152.9z"></path></svg>
+                  <p className="text-sm font-semibold text-slate-700">Drag and Drop</p>
+                  <p className="text-xs text-slate-500 mb-2">or</p>
+                  <span className="bg-slate-700 hover:bg-slate-900 py-2.5 px-6 rounded-xl text-white transition-all duration-300 text-sm font-semibold mt-1">Browse file</span>
+                </>
+              )}
+            </div>
+          </label>
+        </form>
+      </div>
 
       {/* Feedback */}
       {success && (
@@ -308,11 +315,15 @@ export default function Files() {
         ) : files.length === 0 ? (
           <div className="text-center py-12 text-sm text-slate-400">No files uploaded yet.</div>
         ) : (
-          <div className="bg-white border border-slate-200 rounded-2xl divide-y divide-slate-100 overflow-hidden">
+          <div className="flex flex-col gap-3">
             {files.map((f) => (
               <div 
                 key={f.id} 
-                className={`flex items-center justify-between px-5 py-4 transition-colors cursor-pointer ${selectedPreview?.id === f.id ? 'bg-violet-50' : 'hover:bg-slate-50'}`}
+                className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl border transition-all duration-300 cursor-pointer shadow-sm hover:shadow-md hover:-translate-y-0.5 ${
+                  selectedPreview?.id === f.id 
+                    ? 'bg-violet-50 border-violet-200 shadow-violet-100' 
+                    : 'bg-white border-slate-200 hover:border-violet-200'
+                }`}
                 onClick={() => {
                   if (selectedPreview?.id === f.id) {
                     setSelectedPreview(null);
@@ -324,27 +335,47 @@ export default function Files() {
                   }
                 }}
               >
-                <div className="flex items-center gap-3">
-                  {fileIcon(f.file_type)}
+                <div className="flex items-center gap-4">
+                  <div className={`p-3 rounded-xl flex items-center justify-center ${
+                    f.file_type === 'csv' || f.file_type === 'xlsx' ? 'bg-emerald-50' : f.file_type === 'pdf' ? 'bg-red-50' : 'bg-slate-100'
+                  }`}>
+                    {fileIcon(f.file_type)}
+                  </div>
                   <div>
-                    <p className="text-sm font-medium text-slate-900">{f.original_filename}</p>
-                    <p className="text-xs text-slate-400">
-                      {f.file_type?.toUpperCase()}
-                      {f.row_count != null && ` · ${f.row_count.toLocaleString()} rows`}
-                      {f.column_count != null && ` · ${f.column_count} cols`}
+                    <p className="text-sm font-bold text-slate-800">{f.original_filename}</p>
+                    <p className="text-xs text-slate-500 mt-1 flex items-center">
+                      <span className={`font-bold ${
+                        f.file_type === 'csv' || f.file_type === 'xlsx' ? 'text-emerald-600' : f.file_type === 'pdf' ? 'text-red-500' : 'text-slate-600'
+                      }`}>
+                        {f.file_type?.toUpperCase()}
+                      </span>
+                      {f.row_count != null && (
+                        <>
+                          <span className="mx-2 text-slate-300">•</span>
+                          <span>{f.row_count.toLocaleString()} rows</span>
+                        </>
+                      )}
+                      {f.column_count != null && (
+                        <>
+                          <span className="mx-2 text-slate-300">•</span>
+                          <span>{f.column_count} cols</span>
+                        </>
+                      )}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3 mt-4 sm:mt-0">
                   {f.file_type === "pdf" && (
                     <button
                       onClick={(e) => { e.stopPropagation(); handleIndexPDF(f.id, f.original_filename); }}
-                      className="text-xs font-semibold text-violet-600 bg-violet-50 hover:bg-violet-100 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                      className="text-[11px] font-bold tracking-wider text-violet-700 bg-violet-100 hover:bg-violet-200 px-3 py-2 rounded-lg transition-colors cursor-pointer shadow-sm uppercase"
                     >
                       Index for RAG
                     </button>
                   )}
-                  <span className="text-xs text-slate-400 font-mono">ID: {f.id}</span>
+                  <div className="flex items-center justify-center bg-slate-50 text-slate-400 text-[10px] font-mono font-bold px-2 py-1 rounded-md border border-slate-100">
+                    ID: {f.id}
+                  </div>
                 </div>
               </div>
             ))}

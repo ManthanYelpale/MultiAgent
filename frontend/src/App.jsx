@@ -1,5 +1,5 @@
 import React from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, Link } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
@@ -31,9 +31,11 @@ function AppLayout() {
   const isAuthPage = location.pathname === "/login" || location.pathname === "/signup";
 
   return (
-    <div className="min-h-screen flex flex-col text-slate-900 bg-[#fafafa]">
+    <div className="min-h-screen flex flex-col text-slate-900 bg-white">
       {/* Conditionally render navbar */}
       {!isAuthPage && <Nav />}
+
+
 
       <main className={`flex-grow ${isAuthPage ? "flex flex-col justify-center items-center px-4 py-8" : ""}`}>
         <Routes>

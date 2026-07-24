@@ -126,14 +126,14 @@ export default function Analytics() {
   ];
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-12 space-y-8">
+    <div className="max-w-7xl mx-auto px-6 py-12 space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Analytics</h1>
         <p className="text-sm text-slate-500 mt-1">Run AI insights, forecasts, anomaly detection, and generate reports from your uploaded files.</p>
       </div>
 
       {/* File Selector */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3">
+      <div className="space-y-3 pt-2">
         <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Select a file</label>
         {isLoadingFiles ? (
           <div className="flex items-center gap-2 text-sm text-slate-400"><Loader2 size={16} className="animate-spin" /> Loading files...</div>
@@ -162,18 +162,17 @@ export default function Analytics() {
       {/* Tabs */}
       {selectedFile && (
         <>
-          <div className="flex gap-1 border-b border-slate-200">
+          <div className="inline-flex p-1.5 bg-slate-100/80 rounded-xl overflow-x-auto max-w-full hide-scrollbar">
             {tabs.map((t) => (
               <button
                 key={t.key}
                 onClick={() => setActiveTab(t.key)}
-                className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
+                className={`flex items-center justify-center px-8 py-3 text-sm font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${
                   activeTab === t.key
-                    ? "border-violet-600 text-violet-600"
-                    : "border-transparent text-slate-500 hover:text-slate-700"
+                    ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-900/5"
+                    : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
                 }`}
               >
-                <t.icon size={14} />
                 {t.label}
               </button>
             ))}
@@ -197,15 +196,15 @@ export default function Analytics() {
               <button
                 onClick={runInsights}
                 disabled={isLoadingInsights}
-                className="inline-flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold px-5 py-2.5 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
+                className="inline-flex items-center gap-2 bg-black hover:bg-transparent hover:text-black border-2 border-black text-white text-xs font-semibold px-6 py-2.5 rounded-full transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-sm hover:shadow-none"
               >
-                {isLoadingInsights ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                {isLoadingInsights && <Loader2 size={14} className="animate-spin" />}
                 Generate AI Insights
               </button>
               {insights && (
-                <div className="bg-white border border-slate-200 rounded-2xl p-5">
+                <div className="pt-4">
                   <h3 className="text-sm font-semibold text-slate-900 mb-2">AI Insights for {insights.filename}</h3>
-                  <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap">{insights.insights_summary}</p>
+                  <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap max-w-4xl">{insights.insights_summary}</p>
                 </div>
               )}
             </div>
@@ -213,8 +212,8 @@ export default function Analytics() {
 
           {/* Forecast Tab */}
           {activeTab === "forecast" && (
-            <div className="space-y-4">
-              <div className="bg-white border border-slate-200 rounded-2xl p-5 grid sm:grid-cols-3 gap-4">
+            <div className="space-y-6 pt-4">
+              <div className="grid sm:grid-cols-3 gap-4 max-w-3xl">
                 <div>
                   <label className="text-[11px] font-semibold text-slate-500 uppercase">Target column *</label>
                   <input
@@ -246,15 +245,15 @@ export default function Analytics() {
               <button
                 onClick={runForecast}
                 disabled={isLoadingForecast || !forecastForm.target_column}
-                className="inline-flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold px-5 py-2.5 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
+                className="inline-flex items-center gap-2 bg-black hover:bg-transparent hover:text-black border-2 border-black text-white text-xs font-semibold px-6 py-2.5 rounded-full transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-sm hover:shadow-none"
               >
-                {isLoadingForecast ? <Loader2 size={14} className="animate-spin" /> : <TrendingUp size={14} />}
+                {isLoadingForecast && <Loader2 size={14} className="animate-spin" />}
                 Run Forecast
               </button>
               {forecast && (
-                <div className="bg-white border border-slate-200 rounded-2xl p-5">
+                <div className="pt-4">
                   <h3 className="text-sm font-semibold text-slate-900 mb-3">Forecast Results</h3>
-                  <pre className="text-xs text-slate-600 bg-slate-50 rounded-xl p-4 overflow-x-auto whitespace-pre-wrap">
+                  <pre className="text-xs text-slate-700 bg-slate-50/50 rounded-xl p-4 overflow-x-auto whitespace-pre-wrap border border-slate-100 max-w-4xl">
                     {JSON.stringify(forecast, null, 2)}
                   </pre>
                 </div>
@@ -264,8 +263,8 @@ export default function Analytics() {
 
           {/* Anomalies Tab */}
           {activeTab === "anomalies" && (
-            <div className="space-y-4">
-              <div className="bg-white border border-slate-200 rounded-2xl p-5 grid sm:grid-cols-2 gap-4">
+            <div className="space-y-6 pt-4">
+              <div className="grid sm:grid-cols-2 gap-4 max-w-2xl">
                 <div>
                   <label className="text-[11px] font-semibold text-slate-500 uppercase">Feature columns (comma-separated)</label>
                   <input
@@ -289,17 +288,17 @@ export default function Analytics() {
               <button
                 onClick={runAnomalies}
                 disabled={isLoadingAnomalies}
-                className="inline-flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold px-5 py-2.5 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
+                className="inline-flex items-center gap-2 bg-black hover:bg-transparent hover:text-black border-2 border-black text-white text-xs font-semibold px-6 py-2.5 rounded-full transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-sm hover:shadow-none"
               >
-                {isLoadingAnomalies ? <Loader2 size={14} className="animate-spin" /> : <AlertTriangle size={14} />}
+                {isLoadingAnomalies && <Loader2 size={14} className="animate-spin" />}
                 Detect Anomalies
               </button>
               {anomalies && (
-                <div className="bg-white border border-slate-200 rounded-2xl p-5">
+                <div className="pt-4">
                   <h3 className="text-sm font-semibold text-slate-900 mb-3">
                     Anomalies Found: <span className="text-red-600">{anomalies.anomaly_count}</span> / {anomalies.total_rows}
                   </h3>
-                  <pre className="text-xs text-slate-600 bg-slate-50 rounded-xl p-4 overflow-x-auto whitespace-pre-wrap">
+                  <pre className="text-xs text-slate-700 bg-slate-50/50 rounded-xl p-4 overflow-x-auto whitespace-pre-wrap border border-slate-100 max-w-4xl">
                     {JSON.stringify(anomalies, null, 2)}
                   </pre>
                 </div>
@@ -309,8 +308,8 @@ export default function Analytics() {
 
           {/* Reports Tab */}
           {activeTab === "reports" && (
-            <div className="space-y-4">
-              <div className="bg-white border border-slate-200 rounded-2xl p-5 grid sm:grid-cols-3 gap-4">
+            <div className="space-y-6 pt-4">
+              <div className="grid sm:grid-cols-3 gap-4 max-w-3xl">
                 <div>
                   <label className="text-[11px] font-semibold text-slate-500 uppercase">Target column *</label>
                   <input
@@ -345,24 +344,24 @@ export default function Analytics() {
               <button
                 onClick={runReport}
                 disabled={isLoadingReport || !reportForm.target_column}
-                className="inline-flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold px-5 py-2.5 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
+                className="inline-flex items-center gap-2 bg-black hover:bg-transparent hover:text-black border-2 border-black text-white text-xs font-semibold px-6 py-2.5 rounded-full transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-sm hover:shadow-none"
               >
-                {isLoadingReport ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
+                {isLoadingReport && <Loader2 size={14} className="animate-spin" />}
                 Generate Report
               </button>
               {report && (
-                <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3">
+                <div className="pt-4 space-y-3">
                   <h3 className="text-sm font-semibold text-slate-900">Report Ready</h3>
-                  <p className="text-xs text-slate-600 whitespace-pre-wrap">{report.insights_summary}</p>
-                  <div className="flex gap-3 pt-2">
+                  <p className="text-sm text-slate-700 whitespace-pre-wrap max-w-4xl">{report.insights_summary}</p>
+                  <div className="flex gap-4 pt-2">
                     {report.pdf_download_url && (
                       <a
                         href={`${API_BASE_URL.replace("/api/v1", "")}${report.pdf_download_url}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-violet-600 hover:text-violet-800"
+                        className="inline-flex items-center gap-1.5 text-sm font-semibold text-violet-600 hover:text-violet-800"
                       >
-                        <Download size={14} /> Download PDF
+                        <Download size={16} /> Download PDF
                       </a>
                     )}
                     {report.pptx_download_url && (
@@ -370,9 +369,9 @@ export default function Analytics() {
                         href={`${API_BASE_URL.replace("/api/v1", "")}${report.pptx_download_url}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-violet-600 hover:text-violet-800"
+                        className="inline-flex items-center gap-1.5 text-sm font-semibold text-violet-600 hover:text-violet-800"
                       >
-                        <Download size={14} /> Download PPTX
+                        <Download size={16} /> Download PPTX
                       </a>
                     )}
                   </div>
