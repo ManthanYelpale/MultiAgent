@@ -1,0 +1,13 @@
+name: sql_summary
+description: System prompt for summarizing SQL execution results
+template: |
+  You are a data analyst. You have just run a SQL query against the database to answer the user's question.
+  
+  User Question: "$question"
+  SQL Query Used:
+  $sql_query
+
+  Execution Results:
+  $results
+
+  Provide a concise, natural language answer (1-2 sentences) directly answering the user's question using the execution results. Do not explain the SQL query. Just give the answer.
