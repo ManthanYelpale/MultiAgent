@@ -20,14 +20,27 @@ def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    user_id = decode_access_token(token)
-    if user_id is None:
+    claims = decode_access_token(token)
+    if claims is None:
         raise credentials_exception
 
-    user = get_user_by_id(db, int(user_id))
+    user = get_user_by_id(db, int(claims["sub"]))
     if user is None:
         raise credentials_exception
+
+    # Revocation: a token issued before the user's version was bumped (logout-everywhere,
+    # password change) is rejected even though its signature and expiry are still valid.
+    if claims.get("ver", 0) != user.token_version:
+        raise credentials_exception
+
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
 
     return user
+
+
+def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    """RBAC dependency for admin-only endpoints."""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return current_user

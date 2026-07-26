@@ -5,40 +5,31 @@ import {
   ScatterChart, Scatter
 } from 'recharts';
 import { Loader2, AlertCircle } from 'lucide-react';
-import { useAuth } from "../../context/AuthContext";
+import { apiFetch } from "../../lib/api";
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:8000/api/v1";
 const COLORS = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#ec4899'];
 
 export default function Chart({ chart, fileId }) {
-  const { token } = useAuth();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [insight, setInsight] = useState(null);
-  const [insightLoading, setInsightLoading] = useState(false);
   const [warnings, setWarnings] = useState([]);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       setError(null);
-      let fetchedJson = null;
       try {
-        const res = await fetch(`${API_BASE_URL}/dashboards/charts/data`, {
+        const payload = await apiFetch(`/dashboards/charts/data`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
+          body: {
             file_id: fileId,
             chart_type: chart.chart_type,
             x_column: chart.x_column,
             y_column: chart.y_column,
-            agg_function: chart.agg_function
-          })
+            agg_function: chart.agg_function,
+          },
         });
-        if (!res.ok) throw new Error('Failed to load chart data');
-        const payload = await res.json();
-        fetchedJson = payload.data;
         setData(payload.data);
         if (payload.warnings) setWarnings(payload.warnings);
       } catch (err) {
@@ -46,10 +37,9 @@ export default function Chart({ chart, fileId }) {
       } finally {
         setLoading(false);
       }
-
     };
     fetchData();
-  }, [chart, fileId, token]);
+  }, [chart, fileId]);
 
   if (loading) return <div className="flex h-full w-full items-center justify-center"><Loader2 className="animate-spin text-slate-400" /></div>;
   if (error) return <div className="flex h-full w-full items-center justify-center text-xs text-red-500"><AlertCircle size={14} className="mr-1"/> Error</div>;

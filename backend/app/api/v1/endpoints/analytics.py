@@ -1,3 +1,4 @@
+import logging
 import os
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -25,6 +26,8 @@ from app.schemas.analytics import (
     TrendResponse,
 )
 from app.services.ml import MLService, detect_anomalies, generate_ai_insights, run_forecast
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 datasets_analytics_router = APIRouter(prefix="/datasets", tags=["analytics"])
@@ -92,8 +95,9 @@ def forecast_metric(
         return ForecastResponse(**res)
     except ValueError as val_err:
         raise HTTPException(status_code=400, detail=str(val_err))
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Forecasting error: {exc}")
+    except Exception:
+        logger.exception("Unhandled error in %s", __name__)
+        raise HTTPException(status_code=500, detail="Forecasting failed. Please check your inputs and try again.")
 
 
 @router.post("/trend", response_model=TrendResponse)
@@ -112,8 +116,9 @@ def analyze_trend(
         return TrendResponse(**res)
     except ValueError as val_err:
         raise HTTPException(status_code=400, detail=str(val_err))
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Trend analysis error: {exc}")
+    except Exception:
+        logger.exception("Unhandled error in %s", __name__)
+        raise HTTPException(status_code=500, detail="Trend analysis failed. Please check your inputs and try again.")
 
 
 @router.post("/anomalies", response_model=AnomalyResponse)
@@ -134,8 +139,9 @@ def get_anomalies(
             contamination=request.contamination,
         )
         return AnomalyResponse(file_id=db_file.id, **res)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Anomaly detection error: {exc}")
+    except Exception:
+        logger.exception("Unhandled error in %s", __name__)
+        raise HTTPException(status_code=500, detail="Anomaly detection failed. Please check your inputs and try again.")
 
 
 @router.post("/segmentation", response_model=SegmentationResponse)
@@ -154,8 +160,9 @@ def segment_customers_endpoint(
             monetary_column=request.monetary_column,
         )
         return SegmentationResponse(file_id=request.file_id, **res)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Segmentation error: {exc}")
+    except Exception:
+        logger.exception("Unhandled error in %s", __name__)
+        raise HTTPException(status_code=500, detail="Segmentation failed. Please check your inputs and try again.")
 
 
 @router.post("/insights", response_model=InsightsResponse)
@@ -181,5 +188,6 @@ def get_ai_insights(
             filename=db_file.original_filename,
             insights_summary=summary_text,
         )
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"AI Insights error: {exc}")
+    except Exception:
+        logger.exception("Unhandled error in %s", __name__)
+        raise HTTPException(status_code=500, detail="Could not generate insights. Please check your inputs and try again.")

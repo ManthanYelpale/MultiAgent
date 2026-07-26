@@ -9,9 +9,9 @@ logger = logging.getLogger(__name__)
 try:
     import matplotlib
     matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
+    from matplotlib.figure import Figure
 except ImportError:
-    plt = None
+    Figure = None
 
 from app.core.config import settings
 
@@ -20,47 +20,49 @@ REPORTS_DIR = os.path.join(settings.UPLOAD_DIR, "reports")
 
 def render_chart_to_image(chart_type: str, data: List[Dict[str, Any]], title: str) -> str | None:
     """
-    Renders chart data to a PNG file using matplotlib and returns the file path.
+    Renders chart data to a PNG file and returns the file path.
     data format is [{"name": "Category A", "value": 100}, ...]
+
+    Uses the object-oriented Figure API rather than pyplot. pyplot keeps global state
+    that is not thread-safe, so two concurrent report builds (running in FastAPI's
+    threadpool) could draw into each other's figures.
     """
-    if plt is None or not data:
+    if Figure is None or not data:
         return None
 
     os.makedirs(REPORTS_DIR, exist_ok=True)
     chart_filename = f"chart_{uuid.uuid4().hex[:8]}.png"
     chart_path = os.path.join(REPORTS_DIR, chart_filename)
 
-    plt.figure(figsize=(6.5, 3.5), dpi=150)
-    
-    # Extract names and values
     names = [str(item.get("name", "")) for item in data]
     values = [item.get("value", 0) for item in data]
 
+    fig = Figure(figsize=(6.5, 3.5), dpi=150)
+    ax = fig.subplots()
+
     if chart_type == "bar":
-        # Check if labels are long, if so, we might need rotation
-        plt.bar(names, values, color="#8b5cf6")
-        plt.xticks(rotation=45, ha="right", fontsize=8)
-        plt.ylabel("Value", fontsize=8)
-        
+        ax.bar(names, values, color="#8b5cf6")
+        ax.tick_params(axis="x", labelrotation=45, labelsize=8)
+        ax.set_ylabel("Value", fontsize=8)
     elif chart_type == "line":
-        plt.plot(names, values, marker="o", color="#3b82f6", linewidth=2)
-        plt.xticks(rotation=45, ha="right", fontsize=8)
-        plt.ylabel("Value", fontsize=8)
-        plt.grid(True, linestyle="--", alpha=0.5)
-
+        ax.plot(names, values, marker="o", color="#3b82f6", linewidth=2)
+        ax.tick_params(axis="x", labelrotation=45, labelsize=8)
+        ax.set_ylabel("Value", fontsize=8)
+        ax.grid(True, linestyle="--", alpha=0.5)
     elif chart_type == "pie":
-        plt.pie(values, labels=names, autopct="%1.1f%%", startangle=140, textprops={'fontsize': 8})
-        plt.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
-        
-    else: # Fallback to scatter
-        plt.scatter(names, values, color="#10b981")
-        plt.xticks(rotation=45, ha="right", fontsize=8)
-        plt.ylabel("Value", fontsize=8)
-        plt.grid(True, linestyle="--", alpha=0.5)
+        ax.pie(values, labels=names, autopct="%1.1f%%", startangle=140,
+               textprops={"fontsize": 8})
+        ax.axis("equal")
+    else:
+        ax.scatter(names, values, color="#10b981")
+        ax.tick_params(axis="x", labelrotation=45, labelsize=8)
+        ax.set_ylabel("Value", fontsize=8)
+        ax.grid(True, linestyle="--", alpha=0.5)
 
-    plt.title(title, fontsize=10, fontweight="bold")
-    plt.tight_layout()
-    plt.savefig(chart_path)
-    plt.close()
+    for label in ax.get_xticklabels():
+        label.set_horizontalalignment("right")
+    ax.set_title(title, fontsize=10, fontweight="bold")
+    fig.tight_layout()
+    fig.savefig(chart_path)
 
     return chart_path

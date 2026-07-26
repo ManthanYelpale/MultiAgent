@@ -11,7 +11,7 @@ from app.models.dashboard import Dashboard, Chart
 from app.models.cleaning import CleanedDataset
 from app.crud.uploaded_file import get_file_for_user
 from app.schemas.dashboard import DashboardResponse, ChartDataRequest, ChartLayoutUpdate, ChartResponse, ChartCreate
-from app.services.storage import get_storage_service
+from app.services.charts import ChartError, compute_chart_data
 
 router = APIRouter(prefix="/dashboards", tags=["dashboards"])
 
@@ -81,107 +81,18 @@ def get_chart_data(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    db_file = get_file_for_user(db, current_user.id, req.file_id)
-    if not db_file:
-        raise HTTPException(status_code=404, detail="File not found")
-
-    storage = get_storage_service()
-    
-    cleaned = db.query(CleanedDataset).filter(CleanedDataset.file_id == req.file_id).first()
-    if cleaned and not cleaned.skipped and cleaned.storage_path:
-        path = storage.get_file_path(current_user.id, cleaned.storage_path)
-    else:
-        path = storage.get_file_path(current_user.id, db_file.stored_filename)
-        
-    warnings = []
-    if cleaned and cleaned.skipped:
-        warnings.append("⚠ Cleaning was skipped. Data may contain anomalies.")
-        
     try:
-        if path.endswith(".csv"):
-            df = pd.read_csv(path)
-        else:
-            df = pd.read_excel(path)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Error reading file")
-
-    if req.chart_type == "kpi":
-        val = 0
-        if req.y_column in df.columns:
-            if req.agg_function in ["sum", "mean", "max", "min"]:
-                series = pd.to_numeric(df[req.y_column], errors="coerce")
-                if req.agg_function == "sum": val = series.sum()
-                elif req.agg_function == "mean": val = series.mean()
-                elif req.agg_function == "max": val = series.max()
-                elif req.agg_function == "min": val = series.min()
-            elif req.agg_function == "count":
-                val = df[req.y_column].count()
-        
-        # handle numpy types
-        import numpy as np
-        if isinstance(val, (np.int64, np.float64)):
-            val = val.item()
-            
-        result = {"value": round(val, 2) if isinstance(val, float) else val}
-        return {
-            "chart_type": req.chart_type,
-            "x_column": req.x_column,
-            "y_column": req.y_column,
-            "agg_function": req.agg_function,
-            "data": result,
-            "warnings": warnings
-        }
-
-    # Groupby aggregation
-    if not req.x_column or req.x_column not in df.columns:
-        return {"data": [], "warnings": warnings}
-
-    # Handle datetime truncating if it's a date column for cleaner lines
-    if pd.api.types.is_datetime64_any_dtype(df[req.x_column]):
-        df[req.x_column] = df[req.x_column].dt.strftime('%Y-%m-%d')
-
-    if req.agg_function == "count":
-        agg_df = df.groupby(req.x_column).size().reset_index(name='value')
-    else:
-        if not req.y_column or req.y_column not in df.columns:
-            return {"data": [], "warnings": warnings}
-        
-        # Coerce to numeric for sum and mean
-        if req.agg_function in ["sum", "mean"]:
-            df[req.y_column] = pd.to_numeric(df[req.y_column], errors="coerce")
-            
-        if req.agg_function == "sum":
-            agg_df = df.groupby(req.x_column)[req.y_column].sum().reset_index(name='value')
-        elif req.agg_function == "mean":
-            agg_df = df.groupby(req.x_column)[req.y_column].mean().reset_index(name='value')
-        else:
-            return {"data": [], "warnings": warnings}
-
-    # Format for recharts
-    agg_df = agg_df.fillna("Unknown")
-    
-    # Recharts prefers a simple list of dicts: [{name: 'Jan', value: 400}, ...]
-    result = []
-    for _, row in agg_df.iterrows():
-        result.append({
-            "name": str(row[req.x_column]),
-            "value": round(row['value'], 2) if isinstance(row['value'], float) else row['value']
-        })
-
-    # Sort descending by value for bar/pie for better visualization, unless it's line (usually time-series)
-    if req.chart_type in ["bar", "pie"]:
-        result.sort(key=lambda x: x["value"], reverse=True)
-        # Top 20 to avoid crashing browser
-        result = result[:20]
-
-    return {
-        "chart_type": req.chart_type,
-        "x_column": req.x_column,
-        "y_column": req.y_column,
-        "agg_function": req.agg_function,
-        "data": result,
-        "warnings": warnings
-    }
+        return compute_chart_data(
+            db=db,
+            user_id=current_user.id,
+            file_id=req.file_id,
+            chart_type=req.chart_type,
+            x_column=req.x_column,
+            y_column=req.y_column,
+            agg_function=req.agg_function,
+        )
+    except ChartError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 @router.put("/charts/{chart_id}/layout")
 def update_chart_layout(

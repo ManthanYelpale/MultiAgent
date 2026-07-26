@@ -12,9 +12,9 @@ logger = logging.getLogger(__name__)
 try:
     import matplotlib
     matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
+    from matplotlib.figure import Figure
 except ImportError:
-    plt = None
+    Figure = None
 
 try:
     from reportlab.lib import colors
@@ -41,30 +41,34 @@ REPORTS_DIR = os.path.join(settings.UPLOAD_DIR, "reports")
 
 
 def generate_chart_image(df: pd.DataFrame, target_column: str, date_column: str | None = None) -> str | None:
-    if plt is None or target_column not in df.columns:
+    # Object-oriented Figure API — pyplot's global state is not thread-safe under the
+    # request threadpool.
+    if Figure is None or target_column not in df.columns:
         return None
 
     os.makedirs(REPORTS_DIR, exist_ok=True)
     chart_filename = f"chart_{uuid.uuid4().hex[:8]}.png"
     chart_path = os.path.join(REPORTS_DIR, chart_filename)
 
-    plt.figure(figsize=(6.5, 3.2), dpi=150)
     series = pd.to_numeric(df[target_column], errors="coerce").dropna()
 
+    fig = Figure(figsize=(6.5, 3.2), dpi=150)
+    ax = fig.subplots()
     if date_column and date_column in df.columns:
         x_vals = df.loc[series.index, date_column].astype(str)
-        plt.plot(x_vals, series, marker="o", color="#4F46E5", linewidth=2)
-        plt.xticks(rotation=30, ha="right", fontsize=8)
+        ax.plot(x_vals, series, marker="o", color="#4F46E5", linewidth=2)
+        ax.tick_params(axis="x", labelrotation=30, labelsize=8)
+        for label in ax.get_xticklabels():
+            label.set_horizontalalignment("right")
     else:
-        plt.plot(range(1, len(series) + 1), series, marker="o", color="#4F46E5", linewidth=2)
-        plt.xlabel("Index / Period", fontsize=8)
+        ax.plot(range(1, len(series) + 1), series, marker="o", color="#4F46E5", linewidth=2)
+        ax.set_xlabel("Index / Period", fontsize=8)
 
-    plt.title(f"Metric Trend: {target_column}", fontsize=10, fontweight="bold")
-    plt.ylabel(target_column, fontsize=8)
-    plt.grid(True, linestyle="--", alpha=0.5)
-    plt.tight_layout()
-    plt.savefig(chart_path)
-    plt.close()
+    ax.set_title(f"Metric Trend: {target_column}", fontsize=10, fontweight="bold")
+    ax.set_ylabel(target_column, fontsize=8)
+    ax.grid(True, linestyle="--", alpha=0.5)
+    fig.tight_layout()
+    fig.savefig(chart_path)
 
     return chart_path
 

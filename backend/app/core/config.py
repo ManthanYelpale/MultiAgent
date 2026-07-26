@@ -21,6 +21,13 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/ai_business_os"
 
+    # Connection used ONLY by the natural-language SQL agent. Must point at the
+    # `ai_readonly` role created by scripts/create_readonly_role.sql — a non-superuser
+    # with no access to the users table and row-level security enforcing tenant
+    # isolation. When empty the SQL agent is disabled rather than silently falling
+    # back to the privileged DATABASE_URL.
+    READONLY_DATABASE_URL: str = ""
+
     SECRET_KEY: str = "change-this-to-a-long-random-string"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
@@ -34,6 +41,10 @@ class Settings(BaseSettings):
     GROQ_MODEL: str = "llama-3.3-70b-versatile"
 
     ENVIRONMENT: str = "development"
+    # When true, create_all runs even in production. Off by default so Alembic owns the
+    # schema; useful for a first boot or ephemeral environments.
+    AUTO_CREATE_TABLES: bool = False
+    LOG_LEVEL: str = "INFO"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

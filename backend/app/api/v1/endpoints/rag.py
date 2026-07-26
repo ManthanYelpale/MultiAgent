@@ -1,3 +1,4 @@
+import logging
 import os
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -11,6 +12,8 @@ from app.models.user import User
 from app.schemas.rag import IndexFileResponse, RAGQueryRequest, RAGQueryResponse
 from app.services.rag import rag_service
 from app.services.storage import get_storage_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/rag", tags=["rag"])
 
@@ -48,8 +51,9 @@ def index_file(
             chunks_indexed=chunks_count,
             status="success",
         )
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Failed to index PDF: {exc}") from exc
+    except Exception:
+        logger.exception("Unhandled error in %s", __name__)
+        raise HTTPException(status_code=500, detail="Could not index PDF. Please check your inputs and try again.") from exc
 
 
 @router.post("/query", response_model=RAGQueryResponse)

@@ -4,7 +4,7 @@ import { Mail, Lock, User, ShieldCheck, ShieldAlert, CheckCircle2, Loader2, LogO
 import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
-  const { login, signup, logout, user, token, loading: authLoading } = useAuth();
+  const { login, signup, user, token, loading: authLoading, sessionExpired } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -260,6 +260,12 @@ export default function Login() {
           <form onSubmit={handleLoginSubmit} className="bg-white flex flex-col items-center justify-center px-10 sm:px-14 h-full text-center">
             <h1 className="text-3xl font-extrabold text-slate-900 mb-1">Sign In</h1>
             <p className="text-xs text-slate-400 mb-6">Enter your account credentials</p>
+
+            {sessionExpired && !loginApiError && (
+              <div className="w-full mb-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-xs font-medium text-left">
+                Your session expired. Please sign in again.
+              </div>
+            )}
 
             {loginApiError && (
               <div className="w-full mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs font-medium text-left flex items-center gap-2">

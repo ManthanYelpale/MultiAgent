@@ -1,5 +1,6 @@
 import React from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, Link } from "react-router-dom";
+import { Loader2 } from "lucide-react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
@@ -11,13 +12,20 @@ import Preferences from "./pages/Preferences";
 import AboutUs from "./pages/AboutUs";
 import Nav from "./components/Nav";
 import Footer from "./components/Footer";
+import ErrorBoundary from "./components/ErrorBoundary";
+import { ThemeProvider } from "./context/ThemeContext";
 
 // Protected Route wrapper component
 function ProtectedRoute({ children }) {
   const { token, loading } = useAuth();
 
   if (loading) {
-    return null;
+    // A spinner rather than a blank screen (which flashed white on every cold load).
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-violet-600" />
+      </div>
+    );
   }
 
   if (!token) {
@@ -40,6 +48,7 @@ function AppLayout() {
 
 
       <main className={`flex-grow ${isAuthPage ? "flex flex-col justify-center items-center px-4 py-8" : ""}`}>
+        <ErrorBoundary>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Login />} />
@@ -105,6 +114,7 @@ function AppLayout() {
           <Route path="/" element={<Navigate to="/home" replace />} />
           <Route path="*" element={<Navigate to="/home" replace />} />
         </Routes>
+        </ErrorBoundary>
       </main>
 
       {/* Conditionally render footer */}
@@ -116,9 +126,11 @@ function AppLayout() {
 export default function App() {
   return (
     <Router>
-      <AuthProvider>
-        <AppLayout />
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <AppLayout />
+        </AuthProvider>
+      </ThemeProvider>
     </Router>
   );
 }

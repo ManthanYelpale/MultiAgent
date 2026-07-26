@@ -1,17 +1,32 @@
-import React, { useState, useEffect } from 'react';
-import GridLayout from 'react-grid-layout';
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
+import { GridLayout } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import { Loader2, Plus, X, Download, FileText, Presentation } from 'lucide-react';
-import { useAuth } from "../../context/AuthContext";
 import Chart from './Chart';
 import Review from './Review';
-import { downloadProtectedFile } from '../../lib/download';
+import { apiFetch, downloadProtectedFile, pollJob } from '../../lib/api';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:8000/api/v1";
+// react-grid-layout v2 dropped WidthProvider, so measure the container ourselves with a
+// ResizeObserver and feed the width to GridLayout — instead of the old hardcoded 900px
+// that broke on every other viewport.
+function useContainerWidth() {
+  const ref = useRef(null);
+  const [width, setWidth] = useState(0);
+  useLayoutEffect(() => {
+    if (!ref.current) return undefined;
+    const el = ref.current;
+    const update = () => setWidth(el.clientWidth);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, width];
+}
 
 export default function Board({ fileId, columnsPreview }) {
-  const { token } = useAuth();
+  const [gridRef, gridWidth] = useContainerWidth();
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
   const [cleaningStatus, setCleaningStatus] = useState(null); // 'pending', 'skipped', 'applied'
@@ -29,27 +44,18 @@ export default function Board({ fileId, columnsPreview }) {
   let columns = [];
   try { if (columnsPreview) columns = JSON.parse(columnsPreview).columns || []; } catch(e){}
 
+  const layoutSaveTimer = useRef(null);
+
   const fetchDashboard = async () => {
     try {
-      // First check cleaning status
-      const cleanRes = await fetch(`${API_BASE_URL}/cleaning/file/${fileId}/status`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (cleanRes.ok) {
-        const { status } = await cleanRes.json();
-        setCleaningStatus(status);
-        if (status === 'pending') {
-          setLoading(false);
-          return; // Stop here, render Review
-        }
+      const { status } = await apiFetch(`/cleaning/file/${fileId}/status`);
+      setCleaningStatus(status);
+      if (status === 'pending') {
+        setLoading(false);
+        return; // Stop here, render Review
       }
-
-      const res = await fetch(`${API_BASE_URL}/dashboards/file/${fileId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        setDashboard(await res.json());
-      }
+      const data = await apiFetch(`/dashboards/file/${fileId}`);
+      setDashboard(data);
     } catch (err) {
       console.error(err);
     } finally {
@@ -60,27 +66,32 @@ export default function Board({ fileId, columnsPreview }) {
   useEffect(() => {
     setLoading(true);
     fetchDashboard();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fileId]);
 
-  const onLayoutChange = async (layout) => {
-    if (!dashboard) return;
-    if (layout.length === 0) return;
-    
-    for (const l of layout) {
-      fetch(`${API_BASE_URL}/dashboards/charts/${l.i}/layout`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ layout: { x: l.x, y: l.y, w: l.w, h: l.h } })
-      }).catch(console.error);
-    }
+  // Persist layout changes, debounced: a drag/resize fires many events, and firing one
+  // PUT per chart per event flooded the API and could leave the DB inconsistent.
+  const onLayoutChange = (layout) => {
+    if (!dashboard || layout.length === 0) return;
+    if (layoutSaveTimer.current) clearTimeout(layoutSaveTimer.current);
+    layoutSaveTimer.current = setTimeout(() => {
+      Promise.all(
+        layout.map((l) =>
+          apiFetch(`/dashboards/charts/${l.i}/layout`, {
+            method: 'PUT',
+            body: { layout: { x: l.x, y: l.y, w: l.w, h: l.h } },
+          }).catch((e) => console.error(e))
+        )
+      );
+    }, 600);
   };
 
+  useEffect(() => () => layoutSaveTimer.current && clearTimeout(layoutSaveTimer.current), []);
+
   const deleteChart = async (id) => {
+    if (!window.confirm('Remove this chart from the dashboard?')) return;
     try {
-      await fetch(`${API_BASE_URL}/dashboards/charts/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await apiFetch(`/dashboards/charts/${id}`, { method: 'DELETE' });
       setDashboard(prev => ({...prev, charts: prev.charts.filter(c => c.id !== id)}));
     } catch (e) { console.error(e); }
   };
@@ -89,17 +100,13 @@ export default function Board({ fileId, columnsPreview }) {
     try {
       const isKpi = newChart.chart_type === 'kpi';
       const layoutObj = { x: 0, y: 999, w: isKpi ? 3 : 4, h: isKpi ? 2 : 4 };
-      
-      const res = await fetch(`${API_BASE_URL}/dashboards/file/${fileId}/charts`, {
+      await apiFetch(`/dashboards/file/${fileId}/charts`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ ...newChart, layout: layoutObj })
+        body: { ...newChart, layout: layoutObj },
       });
-      if (res.ok) {
-        setShowModal(false);
-        fetchDashboard(); 
-      }
-    } catch(e) { console.error(e); }
+      setShowModal(false);
+      fetchDashboard();
+    } catch (e) { console.error(e); }
   };
 
   const handleExport = async () => {
@@ -107,28 +114,18 @@ export default function Board({ fileId, columnsPreview }) {
     setExportError(null);
     setDownloadLinks({ pdf: null, pptx: null });
     try {
-      const res = await fetch(`${API_BASE_URL}/reports/generate`, {
+      // Report generation is now a background job: enqueue, then poll until it finishes,
+      // so a slow report never holds a request open (or times out the browser).
+      const { job_id } = await apiFetch(`/reports/generate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          file_id: fileId,
-          format: exportConfig.format,
-          sections: exportConfig.sections
-        })
+        body: { file_id: fileId, format: exportConfig.format, sections: exportConfig.sections },
       });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        // detail can be a pydantic error array; stringify it rather than rendering
-        // "[object Object]" at the user.
-        const detail = typeof body.detail === 'string' ? body.detail : null;
-        throw new Error(detail || `Report generation failed (${res.status})`);
-      }
-      const data = await res.json();
+      const data = await pollJob(`/reports/jobs/${job_id}`);
       setDownloadLinks({
         pdf: data.pdf_download_url,
         pptx: data.pptx_download_url,
         pdfName: data.pdf_filename,
-        pptxName: data.pptx_filename
+        pptxName: data.pptx_filename,
       });
     } catch (e) {
       setExportError(e.message);
@@ -139,7 +136,7 @@ export default function Board({ fileId, columnsPreview }) {
 
   const handleDownload = async (url, filename) => {
     try {
-      await downloadProtectedFile(url, token, filename);
+      await downloadProtectedFile(url, filename);
     } catch (e) {
       setExportError(e.message);
     }
@@ -191,18 +188,20 @@ export default function Board({ fileId, columnsPreview }) {
         </div>
       </div>
 
-      <div className="min-h-[500px] pt-4">
+      <div className="min-h-[500px] pt-4" ref={gridRef}>
         {dashboard.charts.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-[400px] text-slate-400">
             <p>No charts in this dashboard yet.</p>
           </div>
+        ) : gridWidth === 0 ? (
+          <div className="flex justify-center py-12"><Loader2 className="animate-spin text-violet-600" /></div>
         ) : (
           <GridLayout
             className="layout"
             layout={layout}
-            cols={12}
+            cols={gridWidth < 640 ? 4 : gridWidth < 1024 ? 6 : 12}
             rowHeight={60}
-            width={900}
+            width={gridWidth}
             onDragStop={onLayoutChange}
             onResizeStop={onLayoutChange}
             isDraggable={true}

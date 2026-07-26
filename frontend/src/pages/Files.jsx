@@ -1,11 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Upload, FileText, Table, Trash2, Loader2, AlertCircle, CheckCircle2, File } from "lucide-react";
-import { useAuth } from "../context/AuthContext";
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:8000/api/v1";
+import { FileText, Table, Trash2, Loader2, AlertCircle, CheckCircle2, File } from "lucide-react";
+import { apiFetch } from "../lib/api";
 
 export default function Files() {
-  const { token } = useAuth();
   const [files, setFiles] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
@@ -14,23 +11,22 @@ export default function Files() {
   const [dragActive, setDragActive] = useState(false);
   const [selectedPreview, setSelectedPreview] = useState(null);
   const [previewData, setPreviewData] = useState(null);
+  const [previewHasMore, setPreviewHasMore] = useState(false);
   const [previewPage, setPreviewPage] = useState(1);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
   const fetchPaginatedData = async (file, page = 1) => {
     if (!file || (file.file_type !== 'csv' && file.file_type !== 'xlsx')) return;
+    if (page < 1) return;
     setIsPreviewLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/files/${file.id}/data?page=${page}&limit=25`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setPreviewData(data);
-        setPreviewPage(page);
-      }
+      const data = await apiFetch(`/files/${file.id}/data?page=${page}&limit=25`);
+      setPreviewData(data.rows || []);
+      setPreviewHasMore(!!data.has_more);
+      setPreviewPage(page);
     } catch (err) {
-      console.error(err);
+      setError(err.message);
     } finally {
       setIsPreviewLoading(false);
     }
@@ -38,18 +34,14 @@ export default function Files() {
 
   const fetchFiles = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/files`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error("Failed to load files");
-      const data = await res.json();
+      const data = await apiFetch(`/files`);
       setFiles(data);
     } catch (err) {
       setError(err.message);
     } finally {
       setIsLoading(false);
     }
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     fetchFiles();
@@ -65,15 +57,7 @@ export default function Files() {
     formData.append("file", file);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/files/upload`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || "Upload failed");
-      }
+      await apiFetch(`/files/upload`, { method: "POST", body: formData });
       setSuccess(`"${file.name}" uploaded successfully`);
       setTimeout(() => setSuccess(null), 3000);
       fetchFiles();
@@ -96,19 +80,35 @@ export default function Files() {
     if (file) handleUpload(file);
   };
 
+  const handleDelete = async (fileId, filename, e) => {
+    e.stopPropagation();
+    if (!window.confirm(`Delete "${filename}"? This also removes its dashboard, cleaned versions, and any RAG index. This cannot be undone.`)) {
+      return;
+    }
+    setDeletingId(fileId);
+    setError(null);
+    setSuccess(null);
+    try {
+      await apiFetch(`/files/${fileId}`, { method: "DELETE" });
+      setSuccess(`"${filename}" deleted`);
+      setTimeout(() => setSuccess(null), 3000);
+      if (selectedPreview?.id === fileId) {
+        setSelectedPreview(null);
+        setPreviewData(null);
+      }
+      fetchFiles();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const handleIndexPDF = async (fileId, filename) => {
     setError(null);
     setSuccess(null);
     try {
-      const res = await fetch(`${API_BASE_URL}/rag/index/${fileId}`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || "Indexing failed");
-      }
-      const data = await res.json();
+      const data = await apiFetch(`/rag/index/${fileId}`, { method: "POST" });
       setSuccess(`"${filename}" indexed successfully (${data.chunks_indexed} chunks)`);
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
@@ -159,7 +159,8 @@ export default function Files() {
       );
     }
 
-    const dataToRender = previewData || profile.preview;
+    const dataToRender = previewData || profile.preview || [];
+    const isPaged = previewData != null;
 
     return (
       <div className="bg-white border border-slate-200 rounded-2xl p-6 mt-6 space-y-6 animate-show-panel">
@@ -198,7 +199,7 @@ export default function Files() {
         <div>
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-sm font-semibold text-slate-800">
-              Data Preview {previewData ? `(Page ${previewPage})` : `(First ${dataToRender.length} Rows)`}
+              Data Preview {isPaged ? `(Page ${previewPage})` : `(First ${dataToRender.length} Rows)`}
               {isPreviewLoading && <Loader2 size={14} className="inline ml-2 animate-spin text-slate-400" />}
             </h4>
             <div className="flex gap-2">
@@ -209,9 +210,9 @@ export default function Files() {
               >
                 Previous
               </button>
-              <button 
+              <button
                 onClick={() => fetchPaginatedData(selectedPreview, previewPage + 1)}
-                disabled={dataToRender.length < 25 || isPreviewLoading}
+                disabled={!previewHasMore || isPreviewLoading}
                 className="px-3 py-1 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg disabled:opacity-50 hover:bg-slate-50 transition-colors"
               >
                 Next 25
@@ -376,6 +377,14 @@ export default function Files() {
                   <div className="flex items-center justify-center bg-slate-50 text-slate-400 text-[10px] font-mono font-bold px-2 py-1 rounded-md border border-slate-100">
                     ID: {f.id}
                   </div>
+                  <button
+                    onClick={(e) => handleDelete(f.id, f.original_filename, e)}
+                    disabled={deletingId === f.id}
+                    title="Delete file"
+                    className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {deletingId === f.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                  </button>
                 </div>
               </div>
             ))}

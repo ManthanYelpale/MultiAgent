@@ -19,3 +19,6 @@ class SQLQueryResult(BaseModel):
     is_safe: bool
     execution_result: SQLExecutionResult | None = None
     error: str | None = None
+    # Was missing, so pydantic silently discarded the natural-language answer the
+    # service had already generated and paid for.
+    summary: str | None = None

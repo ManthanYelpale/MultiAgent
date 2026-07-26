@@ -3,23 +3,34 @@ services:
     image: postgres:16
     restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 123
-      POSTGRES_DB: multiagent
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      # No default: compose fails fast if POSTGRES_PASSWORD is unset rather than
+      # silently booting with a weak baked-in password.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-multiagent}
+    # Bound to localhost only — do not expose Postgres on all interfaces.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   backend:
     build: .
     restart: unless-stopped
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql+psycopg2://postgres:123@db:5432/multiagent
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-multiagent}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-4}
     ports:
       - "8000:8000"
     volumes:

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Loader2, 
   AlertCircle, 
@@ -11,9 +11,7 @@ import {
   Layers,
   ArrowRight
 } from 'lucide-react';
-import { useAuth } from "../../context/AuthContext";
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:8000/api/v1";
+import { apiFetch } from "../../lib/api";
 
 const STRATEGIES = [
   { value: 'fill_mean', label: 'Fill with Mean' },
@@ -26,37 +24,36 @@ const STRATEGIES = [
 ];
 
 export default function Review({ fileId, onComplete }) {
-  const { token } = useAuth();
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState(null);
-  
+
   // Array of { column_name, issue_type, strategy, params }
   const [configs, setConfigs] = useState([]);
-  
+
   // UI state for group expanders & minor issues
   const [expandedGroups, setExpandedGroups] = useState({});
   const [showAllGroups, setShowAllGroups] = useState(false);
-  
+
   // Save as template modal state
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [autoApplying, setAutoApplying] = useState(false);
+  const autoApplyTimer = useRef(null);
 
   useEffect(() => {
+    let cancelled = false;
     const fetchReport = async () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`${API_BASE_URL}/cleaning/file/${fileId}/quality-report`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (!res.ok) throw new Error("Failed to load quality report");
-        const data = await res.json();
+        const data = await apiFetch(`/cleaning/file/${fileId}/quality-report`);
+        if (cancelled) return;
         setReport(data);
-        
-        // Initialize configs from flat issues list
+
+        // Initialise one config per (column, issue_type) so a column with two distinct
+        // issues gets two independently-editable rows instead of colliding on the name.
         const initialConfigs = (data.issues || []).map(iss => ({
           column_name: iss.column_name,
           issue_type: iss.issue_type,
@@ -65,26 +62,34 @@ export default function Review({ fileId, onComplete }) {
         }));
         setConfigs(initialConfigs);
 
-        // If template matches, auto apply after brief toast
+        // If a template matches, auto-apply after a brief toast. The timer is tracked so
+        // it can be cancelled if the component unmounts before it fires (previously it
+        // still ran, writing on an unmounted component).
         if (data.has_template && data.template_rules?.length > 0) {
           setAutoApplying(true);
-          setTimeout(async () => {
-            await handleApplyRaw(data.template_rules);
+          autoApplyTimer.current = setTimeout(() => {
+            handleApplyRaw(data.template_rules);
           }, 1200);
         }
       } catch (err) {
-        setError(err.message);
-        setLoading(false);
+        if (!cancelled) setError(err.message);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     fetchReport();
-  }, [fileId, token]);
+    return () => {
+      cancelled = true;
+      if (autoApplyTimer.current) clearTimeout(autoApplyTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fileId]);
 
-  const updateColumnConfig = (colName, field, value) => {
+  // Match on column AND issue type: a column can appear under two issue groups, and
+  // editing one must not silently overwrite the other's strategy.
+  const updateColumnConfig = (colName, issueType, field, value) => {
     setConfigs(prev => prev.map(c => {
-      if (c.column_name === colName) {
+      if (c.column_name === colName && c.issue_type === issueType) {
         if (field === 'params.value') {
           return { ...c, params: { ...c.params, value } };
         }
@@ -97,7 +102,7 @@ export default function Review({ fileId, onComplete }) {
   const updateGroupStrategy = (group, newStrategy) => {
     const affected = new Set(group.columns_affected);
     setConfigs(prev => prev.map(c => {
-      if (affected.has(c.column_name)) {
+      if (affected.has(c.column_name) && c.issue_type === group.issue_type) {
         return { ...c, strategy: newStrategy };
       }
       return c;
@@ -114,17 +119,12 @@ export default function Review({ fileId, onComplete }) {
   const handleApplyRaw = async (rulesToApply) => {
     setProcessing(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/cleaning/file/${fileId}/apply`, {
+      await apiFetch(`/cleaning/file/${fileId}/apply`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ configs: rulesToApply })
+        body: { configs: rulesToApply },
       });
-      if (res.ok) {
-        onComplete();
-      } else {
-        throw new Error("Failed to apply cleaning");
-      }
-    } catch(e) {
+      onComplete();
+    } catch (e) {
       setError(e.message);
       setProcessing(false);
       setAutoApplying(false);
@@ -147,16 +147,12 @@ export default function Review({ fileId, onComplete }) {
       // file_id must be sent: without it the backend derives the schema signature from
       // the rule column names (only the *dirty* columns), which can never equal the
       // dataset's full column set — so the template could never match on a later upload.
-      await fetch(`${API_BASE_URL}/cleaning/file/${fileId}/save-template`, {
+      await apiFetch(`/cleaning/file/${fileId}/save-template`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          name: templateName || 'My Report Template',
-          rules: configs
-        })
+        body: { name: templateName || 'My Report Template', rules: configs },
       });
     } catch (e) {
-      // Ignore template error and continue
+      // Ignore template error and continue with applying the cleaning.
     }
     await handleApplyRaw(configs);
   };
@@ -164,14 +160,9 @@ export default function Review({ fileId, onComplete }) {
   const handleSkip = async () => {
     setProcessing(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/cleaning/file/${fileId}/skip`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        onComplete();
-      }
-    } catch(e) {
+      await apiFetch(`/cleaning/file/${fileId}/skip`, { method: 'POST' });
+      onComplete();
+    } catch (e) {
       setError(e.message);
     } finally {
       setProcessing(false);
@@ -369,7 +360,7 @@ export default function Review({ fileId, onComplete }) {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {group.column_details.map((col, colIdx) => {
-                        const configObj = configs.find(c => c.column_name === col.column_name) || {};
+                        const configObj = configs.find(c => c.column_name === col.column_name && c.issue_type === group.issue_type) || {};
                         return (
                           <tr key={colIdx} className="hover:bg-white/50">
                             <td className="py-2.5 font-semibold text-slate-700">
@@ -384,7 +375,7 @@ export default function Review({ fileId, onComplete }) {
                             <td className="py-2.5">
                               <select
                                 value={configObj.strategy || 'leave_as_is'}
-                                onChange={e => updateColumnConfig(col.column_name, 'strategy', e.target.value)}
+                                onChange={e => updateColumnConfig(col.column_name, group.issue_type, 'strategy', e.target.value)}
                                 className="p-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-700 focus:outline-none focus:border-violet-500 cursor-pointer"
                               >
                                 {STRATEGIES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}

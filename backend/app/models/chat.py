@@ -7,8 +7,8 @@ class ChatHistory(Base):
     __tablename__ = "chat_history"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    file_id = Column(Integer, ForeignKey("uploaded_files.id"), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    file_id = Column(Integer, ForeignKey("uploaded_files.id"), nullable=True, index=True)
     
     role = Column(String(50), nullable=False) # 'user' or 'assistant'
     content = Column(Text, nullable=False)

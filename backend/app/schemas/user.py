@@ -34,6 +34,38 @@ class UserLogin(BaseModel):
     password: str
 
 
+def _password_rules(value: str) -> str:
+    if len(value.encode("utf-8")) > MAX_PASSWORD_BYTES:
+        raise ValueError(f"Password must be at most {MAX_PASSWORD_BYTES} bytes.")
+    if value.strip() != value:
+        raise ValueError("Password must not begin or end with whitespace.")
+    return value
+
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=MIN_PASSWORD_LENGTH)
+
+    @field_validator("new_password")
+    @classmethod
+    def _validate(cls, v: str) -> str:
+        return _password_rules(v)
+
+
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetConfirm(BaseModel):
+    token: str
+    new_password: str = Field(min_length=MIN_PASSWORD_LENGTH)
+
+    @field_validator("new_password")
+    @classmethod
+    def _validate(cls, v: str) -> str:
+        return _password_rules(v)
+
+
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -41,4 +73,5 @@ class UserOut(BaseModel):
     email: EmailStr
     full_name: str | None
     is_active: bool
+    role: str
     created_at: datetime

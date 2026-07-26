@@ -1,16 +1,31 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { API_BASE_URL, onUnauthorized } from "../lib/api";
 
 const AuthContext = createContext(null);
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:8000/api/v1";
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
   const navigate = useNavigate();
+
+  const logout = useCallback((opts = {}) => {
+    localStorage.removeItem("token");
+    setToken(null);
+    setUser(null);
+    setLoading(false);
+    if (opts.expired) setSessionExpired(true);
+    navigate("/login");
+  }, [navigate]);
+
+  // Any 401 from the shared API client triggers a clean logout with an explanatory
+  // banner, instead of each page silently failing when the token expires.
+  useEffect(() => {
+    return onUnauthorized(() => logout({ expired: true }));
+  }, [logout]);
 
   // Load token from localStorage on initial render
   useEffect(() => {
@@ -51,6 +66,7 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     setLoading(true);
     setError(null);
+    setSessionExpired(false);
     try {
       // OAuth2PasswordRequestForm expects application/x-www-form-urlencoded
       const formData = new URLSearchParams();
@@ -116,14 +132,6 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem("token");
-    setToken(null);
-    setUser(null);
-    setLoading(false);
-    navigate("/login");
-  };
-
   return (
     <AuthContext.Provider
       value={{
@@ -131,10 +139,12 @@ export function AuthProvider({ children }) {
         token,
         loading,
         error,
+        sessionExpired,
         login,
         signup,
         logout,
         setError,
+        clearSessionExpired: () => setSessionExpired(false),
       }}
     >
       {children}

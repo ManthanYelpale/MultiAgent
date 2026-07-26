@@ -132,6 +132,41 @@ class RAGService:
 
         return len(new_chunks)
 
+    def purge_file(self, owner_id: int, file_id: int) -> int:
+        """Drop all indexed chunks for a file (called when the file is deleted).
+
+        FAISS IndexFlat has no efficient per-vector delete, so the vectors remain but
+        their metadata is removed and the ownership filter in query_rag ensures they can
+        never be returned. Returns the number of metadata entries removed.
+        """
+        removed = 0
+        surviving = []
+        for meta in self.chunks_metadata:
+            if meta["owner_id"] == owner_id and meta["file_id"] == file_id:
+                vid = meta.get("vector_id")
+                if vid is not None:
+                    self._vector_id_to_meta.pop(vid, None)
+                removed += 1
+            else:
+                surviving.append(meta)
+        self.chunks_metadata = surviving
+        return removed
+
+    def purge_user(self, owner_id: int) -> int:
+        """Drop all indexed chunks belonging to a user (account deletion)."""
+        removed = 0
+        surviving = []
+        for meta in self.chunks_metadata:
+            if meta["owner_id"] == owner_id:
+                vid = meta.get("vector_id")
+                if vid is not None:
+                    self._vector_id_to_meta.pop(vid, None)
+                removed += 1
+            else:
+                surviving.append(meta)
+        self.chunks_metadata = surviving
+        return removed
+
     def query_rag(
         self,
         owner_id: int,

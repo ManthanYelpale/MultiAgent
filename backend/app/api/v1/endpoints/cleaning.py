@@ -1,6 +1,11 @@
 import json
+import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import pandas as pd
 from typing import List, Optional, Dict, Any
+
+# Cap AI enrichment so a very dirty dataset can't fan out into dozens of LLM calls.
+MAX_AI_SUGGESTIONS = 12
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -21,6 +26,8 @@ from app.services.clean import (
 )
 from app.services.prompts import prompts
 from app.services.llm import llm
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/cleaning", tags=["cleaning"])
 datasets_router = APIRouter(prefix="/datasets", tags=["datasets"])
@@ -52,7 +59,9 @@ def _get_ai_suggestion(column_name: str, issue_type: str, sample_values: list) -
         elif "```" in res:
             res = res.split("```")[1].split("```")[0]
         return json.loads(res.strip())
-    except:
+    except (ValueError, IndexError, TypeError) as exc:
+        # A bare `except:` here also swallowed KeyboardInterrupt and SystemExit.
+        logger.warning("Could not parse AI cleaning suggestion for %s: %s", column_name, exc)
         return {"strategy": "leave_as_is", "reason": "Failed to generate suggestion"}
 
 def _generate_quality_report_data(file_id: int, current_user: User, db: Session) -> Dict[str, Any]:
@@ -74,13 +83,29 @@ def _generate_quality_report_data(file_id: int, current_user: User, db: Session)
     semantic_types = classify_columns_semantic(df)
     issues = detect_issues(df, semantic_types=semantic_types)
     auto_safe_issues = _detect_auto_safe_issues(df)
-    
-    for issue in issues:
-        if not issue.get("reason"):
-            suggestion = _get_ai_suggestion(issue["column_name"], issue["issue_type"], issue["sample_values"])
-            issue["suggested_strategy"] = suggestion.get("strategy", issue.get("suggested_strategy", "leave_as_is"))
-            issue["reason"] = suggestion.get("reason", "")
-            
+
+    # detect_issues already supplies a heuristic reason for every issue; the LLM is only
+    # consulted for any that lack one. Those calls run concurrently (bounded) rather than
+    # one-at-a-time in a loop, which previously serialised a Groq round-trip per issue.
+    pending = [iss for iss in issues if not iss.get("reason")][:MAX_AI_SUGGESTIONS]
+    if pending and llm.is_configured():
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            futures = {
+                pool.submit(_get_ai_suggestion, iss["column_name"], iss["issue_type"],
+                            iss["sample_values"]): iss
+                for iss in pending
+            }
+            for future in as_completed(futures):
+                iss = futures[future]
+                try:
+                    suggestion = future.result()
+                except Exception:
+                    logger.warning("AI suggestion failed for %s", iss["column_name"])
+                    continue
+                iss["suggested_strategy"] = suggestion.get("strategy", iss.get("suggested_strategy", "leave_as_is"))
+                iss["reason"] = suggestion.get("reason", "")
+
+
     issue_groups = group_issues_by_type(issues, df)
     quality_score, quality_headline = compute_quality_score(df, issues)
     
@@ -230,6 +255,11 @@ def get_cleaning_status(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    # Authentication is not authorisation. Without this check any user could probe
+    # arbitrary file ids and learn whether they exist and their cleaning state.
+    if not get_file_for_user(db, current_user.id, file_id):
+        raise HTTPException(status_code=404, detail="File not found")
+
     cleaned = db.query(CleanedDataset).filter(CleanedDataset.file_id == file_id).first()
     if not cleaned:
         return {"status": "pending"}

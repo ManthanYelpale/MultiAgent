@@ -21,10 +21,10 @@ class ChatOrchestrator:
         
         # 1. Classify Intent
         intent = self._classify_intent(message)
-        
+
         # 2. Route
         if intent == "sql":
-            reply = self._route_sql(db, message)
+            reply = self._route_sql(user_id, message)
         elif intent == "rag":
             reply = self._route_rag(user_id, message, file_id)
         else:
@@ -53,12 +53,15 @@ class ChatOrchestrator:
             logger.error(f"Intent classification failed: {e}")
             return "general"
 
-    def _route_sql(self, db: Session, message: str) -> str:
-        result = generate_and_execute_sql(db, message, execute=True)
+    def _route_sql(self, user_id: int, message: str) -> str:
+        # Runs on its own restricted connection. Critically, it no longer shares the
+        # request's Session: a failed query used to leave that session needing a
+        # rollback, and the subsequent history commit then raised PendingRollbackError.
+        result = generate_and_execute_sql(user_id=user_id, question=message, execute=True)
         if result.get("summary"):
             return result["summary"]
         if result.get("error"):
-            return f"Error executing data query: {result['error']}"
+            return f"Sorry — {result['error']}"
         return "I could not generate an answer for that data question."
 
     def _route_rag(self, user_id: int, message: str, file_id: int | None) -> str:

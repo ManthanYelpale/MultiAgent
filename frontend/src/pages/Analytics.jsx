@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Loader2, AlertCircle, Download } from "lucide-react";
-import { useAuth } from "../context/AuthContext";
 import Board from "../components/dashboard/Board";
 import ColumnDropdown from "../components/analytics/ColumnDropdown";
-import { downloadProtectedFile } from "../lib/download";
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:8000/api/v1";
+import { apiFetch, downloadProtectedFile, pollJob } from "../lib/api";
+import ForecastResult from "../components/analytics/ForecastResult";
+import TrendResult from "../components/analytics/TrendResult";
+import AnomalyResult from "../components/analytics/AnomalyResult";
+import SegmentationResult from "../components/analytics/SegmentationResult";
 
 export default function Analytics() {
-  const { token } = useAuth();
   const [files, setFiles] = useState([]);
   const [selectedFile, setSelectedFile] = useState(null);
   const [isLoadingFiles, setIsLoadingFiles] = useState(true);
@@ -58,18 +58,14 @@ export default function Analytics() {
 
   const fetchFiles = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/files`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error("Failed to load files");
-      const data = await res.json();
+      const data = await apiFetch(`/files`);
       setFiles(data.filter((f) => f.file_type === "csv" || f.file_type === "xlsx"));
     } catch (err) {
       setError(err.message);
     } finally {
       setIsLoadingFiles(false);
     }
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     fetchFiles();
@@ -83,15 +79,8 @@ export default function Analytics() {
     const fetchColumns = async () => {
       setIsLoadingColumns(true);
       try {
-        const res = await fetch(`${API_BASE_URL}/datasets/${selectedFile.id}/columns`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setColumns(data.columns || []);
-        } else {
-          setColumns([]);
-        }
+        const data = await apiFetch(`/datasets/${selectedFile.id}/columns`);
+        setColumns(data.columns || []);
       } catch (err) {
         setColumns([]);
       } finally {
@@ -99,22 +88,13 @@ export default function Analytics() {
       }
     };
     fetchColumns();
-  }, [selectedFile, token]);
+  }, [selectedFile]);
 
   const apiCall = async (url, body, setLoading, setResult) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE_URL}${url}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.detail || `Request failed (${res.status})`);
-      }
-      const data = await res.json();
+      const data = await apiFetch(url, { method: "POST", body });
       setResult(data);
     } catch (err) {
       setError(err.message);
@@ -170,20 +150,35 @@ export default function Analytics() {
 
   const handleDownload = async (url, filename) => {
     try {
-      await downloadProtectedFile(url, token, filename);
+      await downloadProtectedFile(url, filename);
     } catch (err) {
       setError(err.message);
     }
   };
 
-  const runReport = () => {
+  const runReport = async () => {
     if (!selectedFile || !reportForm.target_column) return;
-    apiCall("/reports/weekly", {
-      file_id: selectedFile.id,
-      target_column: reportForm.target_column,
-      date_column: reportForm.date_column || null,
-      export_format: reportForm.export_format,
-    }, setIsLoadingReport, setReport);
+    setIsLoadingReport(true);
+    setError(null);
+    setReport(null);
+    try {
+      // Report generation is a background job now: enqueue then poll.
+      const { job_id } = await apiFetch("/reports/weekly", {
+        method: "POST",
+        body: {
+          file_id: selectedFile.id,
+          target_column: reportForm.target_column,
+          date_column: reportForm.date_column || null,
+          export_format: reportForm.export_format,
+        },
+      });
+      const result = await pollJob(`/reports/jobs/${job_id}`);
+      setReport(result);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoadingReport(false);
+    }
   };
 
   const tabs = [
@@ -334,14 +329,7 @@ export default function Analytics() {
                 {isLoadingForecast && <Loader2 size={14} className="animate-spin" />}
                 Run Forecast
               </button>
-              {forecast && (
-                <div className="pt-4">
-                  <h3 className="text-sm font-semibold text-slate-900 mb-3">Forecast Results</h3>
-                  <pre className="text-xs text-slate-700 bg-slate-50/50 rounded-xl p-4 overflow-x-auto whitespace-pre-wrap border border-slate-100 max-w-4xl">
-                    {JSON.stringify(forecast, null, 2)}
-                  </pre>
-                </div>
-              )}
+              {forecast && <ForecastResult forecast={forecast} />}
             </div>
           )}
 
@@ -375,14 +363,7 @@ export default function Analytics() {
                 {isLoadingTrend && <Loader2 size={14} className="animate-spin" />}
                 Analyze Trend
               </button>
-              {trend && (
-                <div className="pt-4">
-                  <h3 className="text-sm font-semibold text-slate-900 mb-3">Trend Analysis</h3>
-                  <pre className="text-xs text-slate-700 bg-slate-50/50 rounded-xl p-4 overflow-x-auto whitespace-pre-wrap border border-slate-100 max-w-4xl">
-                    {JSON.stringify(trend, null, 2)}
-                  </pre>
-                </div>
-              )}
+              {trend && <TrendResult trend={trend} />}
             </div>
           )}
 
@@ -416,16 +397,7 @@ export default function Analytics() {
                 {isLoadingAnomalies && <Loader2 size={14} className="animate-spin" />}
                 Detect Anomalies
               </button>
-              {anomalies && (
-                <div className="pt-4">
-                  <h3 className="text-sm font-semibold text-slate-900 mb-3">
-                    Anomalies Found: <span className="text-red-600">{anomalies.anomaly_count}</span> / {anomalies.total_rows}
-                  </h3>
-                  <pre className="text-xs text-slate-700 bg-slate-50/50 rounded-xl p-4 overflow-x-auto whitespace-pre-wrap border border-slate-100 max-w-4xl">
-                    {JSON.stringify(anomalies, null, 2)}
-                  </pre>
-                </div>
-              )}
+              {anomalies && <AnomalyResult anomalies={anomalies} />}
             </div>
           )}
 
@@ -474,16 +446,7 @@ export default function Analytics() {
                 {isLoadingSegmentation && <Loader2 size={14} className="animate-spin" />}
                 Run Segmentation
               </button>
-              {segmentation && (
-                <div className="pt-4">
-                  <h3 className="text-sm font-semibold text-slate-900 mb-3">
-                    Segmentation Summary ({segmentation.n_clusters} clusters)
-                  </h3>
-                  <pre className="text-xs text-slate-700 bg-slate-50/50 rounded-xl p-4 overflow-x-auto whitespace-pre-wrap border border-slate-100 max-w-4xl">
-                    {JSON.stringify(segmentation, null, 2)}
-                  </pre>
-                </div>
-              )}
+              {segmentation && <SegmentationResult segmentation={segmentation} />}
             </div>
           )}
 

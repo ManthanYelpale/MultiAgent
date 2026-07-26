@@ -40,11 +40,14 @@ def chat_with_data(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    # Only the last few turns are used for context, so fetch a bounded window instead of
+    # loading the user's entire history (which grew unboundedly with every message).
     query = db.query(ChatHistory).filter(ChatHistory.user_id == current_user.id)
     if request.file_id:
         query = query.filter(ChatHistory.file_id == request.file_id)
-    history_records = query.order_by(ChatHistory.created_at.asc()).all()
-    
+    recent = query.order_by(ChatHistory.created_at.desc()).limit(10).all()
+    history_records = list(reversed(recent))
+
     chat_history = [{"role": h.role, "content": h.content} for h in history_records]
     
     result = chat_orchestrator.process_message(

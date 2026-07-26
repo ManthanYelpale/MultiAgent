@@ -1,11 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, RefreshCw, Loader2, Database, FileText, Zap, AlertCircle, Copy, Check, Plus, Search, Compass, BookOpen, Folder, Clock, Paperclip, Mic, Sparkles, Target, BarChart2, PanelLeftClose, PanelLeft, MessageSquare, Trash2 } from "lucide-react";
-import { useAuth } from "../context/AuthContext";
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:8000/api/v1";
+import { Send, User, Loader2, AlertCircle, Copy, Check, Plus, Sparkles, PanelLeftClose, PanelLeft } from "lucide-react";
+import { apiFetch } from "../lib/api";
 
 export default function Chat() {
-  const { token, user } = useAuth();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -31,23 +28,14 @@ export default function Chat() {
   useEffect(() => {
     const fetchHistory = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/ai/chat/history`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          // Filter out the old default assistant message if it exists in DB
-          const filtered = data.filter(m => !(m.role === 'assistant' && m.content.includes("I now have an auto-routing Intent Engine")));
-          if (filtered.length > 0) {
-            setMessages(filtered);
-          }
-        }
+        const data = await apiFetch(`/ai/chat/history`);
+        if (Array.isArray(data) && data.length > 0) setMessages(data);
       } catch (e) {
         console.error("Failed to load history", e);
       }
     };
     fetchHistory();
-  }, [token]);
+  }, []);
 
   const presetPrompts = [
     { label: "Synthesize Data", text: "Turn my sales data into 5 key bullet points." },
@@ -69,22 +57,10 @@ export default function Chat() {
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/ai/chat`, {
+      const data = await apiFetch(`/ai/chat`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ message: textToSend.trim() }),
+        body: { message: textToSend.trim() },
       });
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.detail || `Server error (${response.status})`);
-      }
-
-      const data = await response.json();
-      
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: data.reply, intent: data.intent },
@@ -113,23 +89,6 @@ export default function Chat() {
     navigator.clipboard.writeText(text);
     setCopiedIndex(idx);
     setTimeout(() => setCopiedIndex(null), 2000);
-  };
-
-  const dummyHistory = {
-    today: [
-      "Create a detailed 7-day sprint plan for...",
-      "Draft a concise email to stakeholder...",
-      "Analyze the 'Eisenhower Matrix' and..."
-    ],
-    yesterday: [
-      "Summarize the main differences between...",
-      "I need to negotiate an extension for..."
-    ],
-    last7days: [
-      "Generate 5 effective morning habits...",
-      "As a non-technical PM, list 5 crucial...",
-      "Help me allocate 8 hours tomorrow..."
-    ]
   };
 
   return (
@@ -162,44 +121,15 @@ export default function Chat() {
               <span>New chat</span>
             </button>
 
-            <button className="w-full flex items-center gap-4 px-4 py-2.5 text-sm text-slate-700 hover:bg-[#e8ebf1] rounded-full transition-colors font-medium">
-              <Search size={18}/> Search chats
-            </button>
-            <button className="w-full flex items-center gap-4 px-4 py-2.5 text-sm text-slate-700 hover:bg-[#e8ebf1] rounded-full transition-colors font-medium">
-              <Compass size={18}/> Explore
-            </button>
-            <button className="w-full flex items-center gap-4 px-4 py-2.5 text-sm text-slate-700 hover:bg-[#e8ebf1] rounded-full transition-colors font-medium">
-              <BookOpen size={18}/> Library
-            </button>
-
-            <div className="pt-6">
-              <p className="text-[13px] font-medium text-slate-500 mb-1 px-4">Recent</p>
-              <div className="space-y-0.5">
-                {dummyHistory.today.map((title, i) => (
-                  <div key={`t-${i}`} className="group relative flex items-center justify-between px-4 py-2 text-[13px] text-slate-700 hover:bg-[#e8ebf1] rounded-full cursor-pointer transition-colors font-medium">
-                    <span className="truncate pr-6">{title}</span>
-                    <button className="absolute right-2 opacity-0 group-hover:opacity-100 p-1.5 rounded-full hover:bg-slate-200/60 text-slate-400 hover:text-red-500 transition-all" onClick={(e) => e.stopPropagation()}>
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
-                {dummyHistory.yesterday.map((title, i) => (
-                  <div key={`y-${i}`} className="group relative flex items-center justify-between px-4 py-2 text-[13px] text-slate-700 hover:bg-[#e8ebf1] rounded-full cursor-pointer transition-colors font-medium">
-                    <span className="truncate pr-6">{title}</span>
-                    <button className="absolute right-2 opacity-0 group-hover:opacity-100 p-1.5 rounded-full hover:bg-slate-200/60 text-slate-400 hover:text-red-500 transition-all" onClick={(e) => e.stopPropagation()}>
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
-                {dummyHistory.last7days.map((title, i) => (
-                  <div key={`7-${i}`} className="group relative flex items-center justify-between px-4 py-2 text-[13px] text-slate-700 hover:bg-[#e8ebf1] rounded-full cursor-pointer transition-colors font-medium">
-                    <span className="truncate pr-6">{title}</span>
-                    <button className="absolute right-2 opacity-0 group-hover:opacity-100 p-1.5 rounded-full hover:bg-slate-200/60 text-slate-400 hover:text-red-500 transition-all" onClick={(e) => e.stopPropagation()}>
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
+            {/* Real, intent-routed assistant. No fabricated history — the sidebar only
+                shows what the app can actually deliver. */}
+            <div className="pt-4 px-4 text-[13px] text-slate-500 leading-relaxed">
+              <p className="font-medium text-slate-700 mb-1">About this assistant</p>
+              <p>
+                Ask a data question and it routes automatically: SQL for metrics, document
+                search for your indexed PDFs, or a general answer. Chat history is saved to
+                your account and reloads when you return.
+              </p>
             </div>
           </div>
         </div>
@@ -245,12 +175,8 @@ export default function Chat() {
                   placeholder="Message..."
                   className="w-full bg-transparent p-5 pr-16 text-base text-slate-800 placeholder-slate-400 focus:outline-none resize-none"
                 />
-                <div className="flex items-center justify-between p-3 pb-4 px-4 bg-transparent rounded-b-3xl">
+                <div className="flex items-center justify-end p-3 pb-4 px-4 bg-transparent rounded-b-3xl">
                   <div className="flex items-center gap-2">
-                    <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"><Paperclip size={18}/></button>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button className="p-2 text-slate-400 hover:text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-full transition-colors"><Mic size={18}/></button>
                     <button
                       onClick={() => handleSend()}
                       disabled={!input.trim() || isLoading}
@@ -262,7 +188,18 @@ export default function Chat() {
                 </div>
               </div>
 
-
+              {/* Starter prompts */}
+              <div className="flex flex-wrap gap-2 justify-center">
+                {presetPrompts.map((p) => (
+                  <button
+                    key={p.label}
+                    onClick={() => handleSend(p.text)}
+                    className="px-4 py-2 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-full hover:border-violet-300 hover:text-violet-700 transition-colors cursor-pointer"
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}
@@ -355,7 +292,6 @@ export default function Chat() {
                     className="w-full bg-transparent py-4 pl-5 pr-32 text-base text-slate-800 placeholder-slate-400 focus:outline-none resize-none max-h-32"
                   />
                   <div className="absolute right-2 bottom-2.5 flex items-center gap-1.5">
-                    <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"><Paperclip size={18}/></button>
                     <button
                       onClick={() => handleSend()}
                       disabled={!input.trim() || isLoading}
