@@ -10,12 +10,24 @@ except ImportError:
     PdfReader = None
 
 
+def _read_tabular(path: str, file_type: str) -> pd.DataFrame:
+    """Read CSV or Excel with a multi-encoding fallback so BOM / Windows files don't fail."""
+    if file_type == "xlsx":
+        return pd.read_excel(path)
+
+    # Try common encodings in order; Latin-1 never raises a decode error so it's last resort.
+    for enc in ("utf-8-sig", "utf-8", "latin-1", "cp1252"):
+        try:
+            return pd.read_csv(path, encoding=enc)
+        except UnicodeDecodeError:
+            continue
+    # Final fallback — should never reach here after latin-1 but keeps type-checker happy
+    return pd.read_csv(path, encoding="latin-1", errors="replace")
+
+
 def profile_tabular_file(path: str, file_type: str) -> Tuple[int, int, Dict[str, Any]]:
-    if file_type == "csv":
-        df = pd.read_csv(path)
-    elif file_type == "xlsx":
-        df = pd.read_excel(path)
-    else:
+    df = _read_tabular(path, file_type)
+    if df is None:
         raise ValueError("Unsupported tabular file type")
 
     row_count = len(df)

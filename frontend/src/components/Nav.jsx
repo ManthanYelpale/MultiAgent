@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { LogOut, User, Settings } from "lucide-react";
+import { LogOut, User, Settings, Brain } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const navLinks = [
@@ -8,6 +8,7 @@ const navLinks = [
   { path: "/chat", label: "AI Chat" },
   { path: "/files", label: "Files" },
   { path: "/analytics", label: "Analytics" },
+  { path: "/about", label: "About Us" },
 ];
 
 export default function Nav() {
@@ -41,22 +42,32 @@ export default function Nav() {
       <header className="fixed top-0 left-0 right-0 z-50 w-full bg-white/80 backdrop-blur-xl border-b border-gray-200/60 shadow-sm transition-all">
         <div className="max-w-7xl mx-auto px-6 flex items-center justify-between py-3">
         
-        {/* Nav Links */}
-        <nav className="flex items-center gap-2">
-          {navLinks.map((link) => (
-            <Link
-              key={link.path}
-              to={link.path}
-              className={`text-sm px-5 py-2.5 rounded-full transition-all duration-300 ${
-                isActive(link.path)
-                  ? "bg-gray-900 text-white font-medium"
-                  : "text-gray-500 hover:text-gray-900 hover:bg-gray-100/50 font-normal"
-              }`}
-            >
-              {link.label}
-            </Link>
-          ))}
-        </nav>
+        <div className="flex items-center gap-8">
+          {/* Brand Logo */}
+          <Link to="/home" className="flex items-center gap-2.5 font-extrabold text-lg tracking-tight text-slate-900 group">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-violet-600 to-purple-600 text-white shadow-sm group-hover:scale-105 transition-transform">
+              <Brain size={16} />
+            </div>
+            <span>Insyte</span>
+          </Link>
+
+          {/* Nav Links */}
+          <nav className="flex items-center gap-2">
+            {navLinks.map((link) => (
+              <Link
+                key={link.path}
+                to={link.path}
+                className={`text-sm px-5 py-2.5 rounded-full transition-all duration-300 ${
+                  isActive(link.path)
+                    ? "bg-gray-900 text-white font-medium"
+                    : "text-gray-500 hover:text-gray-900 hover:bg-gray-100/50 font-normal"
+                }`}
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+        </div>
 
         {/* Profile Action with Dropdown */}
         <div className="flex items-center pr-1 relative" ref={dropdownRef}>

@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.core.config import settings
+from app.core.ratelimit import llm_limiter, rate_limit
 from app.crud.uploaded_file import get_file_for_user
 from app.db.session import get_db
 from app.models.user import User
@@ -12,7 +13,11 @@ from app.services.llm import llm
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
-@router.post("/message", response_model=ChatResponse)
+@router.post(
+    "/message",
+    response_model=ChatResponse,
+    dependencies=[Depends(rate_limit(llm_limiter, "chat_message"))],
+)
 def chat_message(
     request: ChatRequest,
     current_user: User = Depends(get_current_user),
@@ -26,7 +31,11 @@ def chat_message(
     return ChatResponse(reply=reply, model=settings.GROQ_MODEL)
 
 
-@router.post("/data-qa", response_model=ChatResponse)
+@router.post(
+    "/data-qa",
+    response_model=ChatResponse,
+    dependencies=[Depends(rate_limit(llm_limiter, "data_qa"))],
+)
 def data_qa(
     request: DataQARequest,
     current_user: User = Depends(get_current_user),

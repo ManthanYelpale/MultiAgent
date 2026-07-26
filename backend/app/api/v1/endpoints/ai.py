@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 
 from app.api.deps import get_current_user
+from app.core.ratelimit import llm_limiter, rate_limit
 from app.db.session import get_db
 from app.models.user import User
 from app.models.chat import ChatHistory
@@ -13,7 +14,7 @@ from app.services.ml import generate_kpi_insight
 router = APIRouter(prefix="/ai", tags=["ai"])
 
 class ChatRequest(BaseModel):
-    message: str
+    message: str = Field(..., min_length=1, max_length=8000)
     file_id: Optional[int] = None
 
 class ChatResponse(BaseModel):
@@ -29,7 +30,11 @@ class InsightRequest(BaseModel):
 class InsightResponse(BaseModel):
     insight: str
 
-@router.post("/chat", response_model=ChatResponse)
+@router.post(
+    "/chat",
+    response_model=ChatResponse,
+    dependencies=[Depends(rate_limit(llm_limiter, "ai_chat"))],
+)
 def chat_with_data(
     request: ChatRequest,
     current_user: User = Depends(get_current_user),

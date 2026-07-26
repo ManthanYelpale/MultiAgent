@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import GridLayout from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
-import { Loader2, Plus, X } from 'lucide-react';
+import { Loader2, Plus, X, Download, FileText, Presentation } from 'lucide-react';
 import { useAuth } from "../../context/AuthContext";
 import Chart from './Chart';
 import Review from './Review';
+import { downloadProtectedFile } from '../../lib/download';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:8000/api/v1";
 
@@ -17,6 +18,13 @@ export default function Board({ fileId, columnsPreview }) {
   
   const [showModal, setShowModal] = useState(false);
   const [newChart, setNewChart] = useState({ chart_type: 'bar', x_column: '', y_column: '', agg_function: 'sum' });
+
+  // Export Modal State
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportConfig, setExportConfig] = useState({ format: 'both', sections: ['kpis', 'charts', 'insights', 'forecast'] });
+  const [exporting, setExporting] = useState(false);
+  const [downloadLinks, setDownloadLinks] = useState({ pdf: null, pptx: null });
+  const [exportError, setExportError] = useState(null);
 
   let columns = [];
   try { if (columnsPreview) columns = JSON.parse(columnsPreview).columns || []; } catch(e){}
@@ -79,16 +87,71 @@ export default function Board({ fileId, columnsPreview }) {
 
   const addChart = async () => {
     try {
+      const isKpi = newChart.chart_type === 'kpi';
+      const layoutObj = { x: 0, y: 999, w: isKpi ? 3 : 4, h: isKpi ? 2 : 4 };
+      
       const res = await fetch(`${API_BASE_URL}/dashboards/file/${fileId}/charts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(newChart)
+        body: JSON.stringify({ ...newChart, layout: layoutObj })
       });
       if (res.ok) {
         setShowModal(false);
         fetchDashboard(); 
       }
     } catch(e) { console.error(e); }
+  };
+
+  const handleExport = async () => {
+    setExporting(true);
+    setExportError(null);
+    setDownloadLinks({ pdf: null, pptx: null });
+    try {
+      const res = await fetch(`${API_BASE_URL}/reports/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          file_id: fileId,
+          format: exportConfig.format,
+          sections: exportConfig.sections
+        })
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        // detail can be a pydantic error array; stringify it rather than rendering
+        // "[object Object]" at the user.
+        const detail = typeof body.detail === 'string' ? body.detail : null;
+        throw new Error(detail || `Report generation failed (${res.status})`);
+      }
+      const data = await res.json();
+      setDownloadLinks({
+        pdf: data.pdf_download_url,
+        pptx: data.pptx_download_url,
+        pdfName: data.pdf_filename,
+        pptxName: data.pptx_filename
+      });
+    } catch (e) {
+      setExportError(e.message);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleDownload = async (url, filename) => {
+    try {
+      await downloadProtectedFile(url, token, filename);
+    } catch (e) {
+      setExportError(e.message);
+    }
+  };
+
+  const toggleSection = (section) => {
+    setExportConfig(prev => {
+      const sections = prev.sections.includes(section)
+        ? prev.sections.filter(s => s !== section)
+        : [...prev.sections, section];
+      return { ...prev, sections };
+    });
   };
 
   if (loading) return <div className="py-12 flex justify-center"><Loader2 className="animate-spin text-violet-600" /></div>;
@@ -115,9 +178,17 @@ export default function Board({ fileId, columnsPreview }) {
           <h2 className="text-lg font-bold text-slate-900">{dashboard.name}</h2>
           <p className="text-sm text-slate-500">{dashboard.charts.length} charts auto-generated</p>
         </div>
-        <button onClick={() => setShowModal(true)} className="uiverse-btn inline-flex items-center gap-2">
-          <Plus size={16}/> Add Chart
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setShowExportModal(true)} 
+            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-colors shadow-sm"
+          >
+            <Download size={16} /> Export Report
+          </button>
+          <button onClick={() => setShowModal(true)} className="uiverse-btn inline-flex items-center gap-2">
+            <Plus size={16}/> Add Chart
+          </button>
+        </div>
       </div>
 
       <div className="min-h-[500px] pt-4">
@@ -222,6 +293,97 @@ export default function Board({ fileId, columnsPreview }) {
               >
                 Create chart
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showExportModal && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4">
+          <div className="flex flex-col bg-white rounded-3xl w-full max-w-md shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
+            <button 
+              onClick={() => { setShowExportModal(false); setDownloadLinks({pdf: null, pptx: null}); }}
+              className="absolute top-6 right-6 text-gray-400 hover:text-gray-900 transition-colors cursor-pointer"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="px-6 py-8 sm:p-10 sm:pb-6">
+              <div className="grid items-center justify-center w-full grid-cols-1 text-left">
+                <div>
+                  <h2 className="text-lg font-medium tracking-tighter text-gray-600 lg:text-3xl">
+                    Export Report
+                  </h2>
+                  <p className="mt-2 text-sm text-gray-500">Generate a polished executive summary.</p>
+                </div>
+                
+                <div className="mt-6 space-y-6">
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider block mb-2">Sections to Include</label>
+                    <div className="space-y-2">
+                      {[
+                        { id: 'kpis', label: 'Key Performance Indicators' },
+                        { id: 'insights', label: 'AI Executive Insights' },
+                        { id: 'charts', label: 'Dashboard Visualizations' },
+                        { id: 'forecast', label: 'Metric Projections (Forecast)' }
+                      ].map(sec => (
+                        <label key={sec.id} className="flex items-center gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
+                          <input 
+                            type="checkbox" 
+                            checked={exportConfig.sections.includes(sec.id)}
+                            onChange={() => toggleSection(sec.id)}
+                            className="w-4 h-4 text-violet-600 bg-gray-100 border-gray-300 rounded focus:ring-violet-500"
+                          />
+                          <span className="text-sm font-medium text-slate-700">{sec.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider block mb-2">Export Format</label>
+                    <select 
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition-all cursor-pointer"
+                      value={exportConfig.format} 
+                      onChange={e => setExportConfig({...exportConfig, format: e.target.value})}
+                    >
+                      <option value="both">Both (PDF & PPTX)</option>
+                      <option value="pdf">PDF Document</option>
+                      <option value="pptx">PowerPoint Presentation</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex flex-col gap-3 px-6 pb-8 sm:px-10">
+              {exportError && (
+                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs font-medium">
+                  {exportError}
+                </div>
+              )}
+              {downloadLinks.pdf || downloadLinks.pptx ? (
+                <div className="flex gap-2">
+                  {downloadLinks.pdf && (
+                    <button type="button" onClick={() => handleDownload(downloadLinks.pdf, downloadLinks.pdfName)} className="flex-1 flex items-center justify-center gap-2 px-6 py-3.5 text-center text-white bg-rose-600 hover:bg-rose-700 rounded-full font-semibold shadow-md transition-colors cursor-pointer">
+                      <FileText size={18} /> PDF
+                    </button>
+                  )}
+                  {downloadLinks.pptx && (
+                    <button type="button" onClick={() => handleDownload(downloadLinks.pptx, downloadLinks.pptxName)} className="flex-1 flex items-center justify-center gap-2 px-6 py-3.5 text-center text-white bg-orange-600 hover:bg-orange-700 rounded-full font-semibold shadow-md transition-colors cursor-pointer">
+                      <Presentation size={18} /> PPTX
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <button
+                  onClick={handleExport}
+                  disabled={exporting || exportConfig.sections.length === 0}
+                  className="flex items-center justify-center w-full px-6 py-3.5 text-center text-white duration-200 bg-black border-2 border-black rounded-full hover:bg-transparent hover:text-black focus:outline-none focus-visible:outline-black text-sm font-semibold focus-visible:ring-black cursor-pointer shadow-md hover:shadow-none disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {exporting ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Generating...</> : "Generate Document"}
+                </button>
+              )}
             </div>
           </div>
         </div>

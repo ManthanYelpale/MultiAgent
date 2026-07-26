@@ -10,6 +10,7 @@ from app.db.session import get_db
 from app.models.user import User
 from app.schemas.rag import IndexFileResponse, RAGQueryRequest, RAGQueryResponse
 from app.services.rag import rag_service
+from app.services.storage import get_storage_service
 
 router = APIRouter(prefix="/rag", tags=["rag"])
 
@@ -27,7 +28,10 @@ def index_file(
     if db_file.file_type != "pdf":
         raise HTTPException(status_code=400, detail="Only PDF files can be indexed for RAG")
 
-    file_path = os.path.join(settings.UPLOAD_DIR, db_file.stored_filename)
+    # Uploads live under UPLOAD_DIR/<owner_id>/, so the path must go through the
+    # storage service — joining UPLOAD_DIR directly skips the per-user directory.
+    storage = get_storage_service()
+    file_path = storage.get_file_path(current_user.id, db_file.stored_filename)
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="Physical PDF file missing on disk")
 

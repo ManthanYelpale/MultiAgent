@@ -23,7 +23,9 @@ try:
     from reportlab.lib.units import inch
     from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 except ImportError:
-    colors = None
+    # See report_builder.py: all names must be bound or the None-guard raises NameError.
+    colors = letter = ParagraphStyle = getSampleStyleSheet = inch = None
+    Image = Paragraph = SimpleDocTemplate = Spacer = Table = TableStyle = None
 
 try:
     from pptx import Presentation

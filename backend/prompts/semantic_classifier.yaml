@@ -1,0 +1,26 @@
+name: semantic_classifier
+description: "Classifies dataset columns into semantic types"
+template: |
+  You are an expert data architect. Classify each of the following dataset columns into ONE of these semantic types:
+  - currency (money, prices, revenue, cost, salaries)
+  - date (dates, timestamps, years, months, days)
+  - email (email addresses)
+  - id (unique identifiers, codes, keys, order numbers)
+  - category (categorical variables, status, departments, regions, low cardinality strings)
+  - percentage (percentages, rates, margins)
+  - free_text (long descriptions, comments, names, addresses)
+  - unknown (numeric or string columns that don't fit the above)
+
+  Columns and sample values:
+  $columns_json
+
+  Output ONLY a valid JSON object mapping each column name to its semantic type, like this:
+  {
+    "price": "currency",
+    "created_at": "date",
+    "customer_email": "email",
+    "order_id": "id",
+    "status": "category",
+    "discount_rate": "percentage",
+    "notes": "free_text"
+  }

@@ -1,0 +1,33 @@
+# Secrets — must never enter an image layer
+.env
+.env.*
+!.env.example
+
+# User-uploaded data and generated reports
+uploads/
+!uploads/.gitkeep
+
+# Python environments and caches
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Local databases
+*.db
+*.sqlite3
+
+# Test fixtures
+test_*.csv
+test_*.py
+
+# VCS / editor / OS
+.git/
+.gitignore
+.DS_Store
+.vscode/
+.idea/

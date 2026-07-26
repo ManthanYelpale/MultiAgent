@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.core.ratelimit import login_limiter, rate_limit, signup_limiter
 from app.core.security import create_access_token
 from app.crud.user import authenticate_user, create_user, get_user_by_email
 from app.db.session import get_db
@@ -13,7 +14,12 @@ from app.schemas.user import UserCreate, UserOut
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/signup", response_model=UserOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/signup",
+    response_model=UserOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(rate_limit(signup_limiter, "signup"))],
+)
 def signup(user_in: UserCreate, db: Session = Depends(get_db)):
     existing = get_user_by_email(db, user_in.email)
     if existing:
@@ -21,8 +27,16 @@ def signup(user_in: UserCreate, db: Session = Depends(get_db)):
     return create_user(db, user_in)
 
 
-@router.post("/login", response_model=Token)
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+@router.post(
+    "/login",
+    response_model=Token,
+    dependencies=[Depends(rate_limit(login_limiter, "login"))],
+)
+def login(
+    request: Request,
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
+):
     user = authenticate_user(db, form_data.username, form_data.password)
     if not user:
         raise HTTPException(
@@ -30,6 +44,9 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    # Don't let a legitimate user's successful login count against the brute-force budget.
+    client = request.client
+    login_limiter.reset(f"login:{client.host if client else 'unknown'}")
     access_token = create_access_token(subject=str(user.id))
     return Token(access_token=access_token)
 

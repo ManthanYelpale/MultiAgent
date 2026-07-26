@@ -23,3 +23,13 @@ class CleanedDataset(Base):
     storage_path = Column(String(255), nullable=True) # None if skipped and just using raw
     skipped = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class CleaningTemplate(Base):
+    __tablename__ = "cleaning_templates"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(255), nullable=False)
+    schema_signature = Column(JSON, nullable=False) # list of sorted column names
+    rules = Column(JSON, nullable=False) # list of strategy configs
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

@@ -8,7 +8,9 @@ import Files from "./pages/Files";
 import Analytics from "./pages/Analytics";
 import Account from "./pages/Account";
 import Preferences from "./pages/Preferences";
+import AboutUs from "./pages/AboutUs";
 import Nav from "./components/Nav";
+import Footer from "./components/Footer";
 
 // Protected Route wrapper component
 function ProtectedRoute({ children }) {
@@ -91,11 +93,22 @@ function AppLayout() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/about"
+            element={
+              <ProtectedRoute>
+                <AboutUs />
+              </ProtectedRoute>
+            }
+          />
 
           <Route path="/" element={<Navigate to="/home" replace />} />
           <Route path="*" element={<Navigate to="/home" replace />} />
         </Routes>
       </main>
+
+      {/* Conditionally render footer */}
+      {!isAuthPage && <Footer />}
     </div>
   );
 }

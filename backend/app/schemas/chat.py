@@ -1,14 +1,19 @@
-from typing import Any
+from typing import Any, Literal
 from pydantic import BaseModel, Field
+
+MAX_MESSAGES_PER_REQUEST = 40
+MAX_MESSAGE_CHARS = 8000
 
 
 class ChatMessage(BaseModel):
-    role: str = Field(..., description="user or assistant or system")
-    content: str = Field(..., description="Message text")
+    # Previously a free-form str, which let callers inject their own "system" turns and
+    # override the server's instructions. The system prompt is set server-side only.
+    role: Literal["user", "assistant"] = Field(..., description="user or assistant")
+    content: str = Field(..., min_length=1, max_length=MAX_MESSAGE_CHARS)
 
 
 class ChatRequest(BaseModel):
-    messages: list[ChatMessage]
+    messages: list[ChatMessage] = Field(..., min_length=1, max_length=MAX_MESSAGES_PER_REQUEST)
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(default=1024, ge=1, le=4096)
 

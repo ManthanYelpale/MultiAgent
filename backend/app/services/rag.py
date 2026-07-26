@@ -31,6 +31,8 @@ class RAGService:
         self._model = None
         self._index = None
         self.chunks_metadata: list[dict[str, Any]] = []
+        # Authoritative FAISS-id -> metadata mapping. Never infer this from list position.
+        self._vector_id_to_meta: dict[int, dict[str, Any]] = {}
 
     @property
     def model(self):
@@ -91,19 +93,42 @@ class RAGService:
         if not new_chunks:
             return 0
 
-        # Compute embeddings
+        # Compute embeddings.
+        #
+        # The vector store and chunks_metadata are two parallel structures whose offsets
+        # must line up: query_rag() looks up chunks_metadata[faiss_id] and reads owner_id
+        # off it to enforce tenant isolation. Previously the fallback branch appended
+        # metadata WITHOUT adding a vector, so a single transient model-load failure
+        # desynchronised the offsets permanently — after which a FAISS hit resolved to a
+        # different user's chunk and the owner_id filter was checking the wrong record.
+        #
+        # Every chunk now records whether it is vector-backed, and vector ids are tracked
+        # explicitly rather than inferred from list position.
         if self.model is not None and faiss is not None:
             embeddings = self.model.encode(new_chunks, normalize_embeddings=True)
             dimension = embeddings.shape[1]
 
             if self._index is None:
                 self._index = faiss.IndexFlatIP(dimension)
+            elif self._index.d != dimension:
+                raise RuntimeError(
+                    f"Embedding dimension changed ({self._index.d} -> {dimension}); "
+                    "refusing to corrupt the existing index."
+                )
 
+            next_vector_id = self._index.ntotal
             self._index.add(np.array(embeddings, dtype=np.float32))
-            self.chunks_metadata.extend(new_meta)
+            for offset, meta in enumerate(new_meta):
+                meta["vector_id"] = next_vector_id + offset
+                self.chunks_metadata.append(meta)
+                self._vector_id_to_meta[meta["vector_id"]] = meta
         else:
-            # Fallback when heavy ML model fails to load: store text for basic keyword match
-            self.chunks_metadata.extend(new_meta)
+            # Fallback when the embedding model is unavailable: retain the text for the
+            # keyword path, but mark it as having no vector so it can never be resolved
+            # by a FAISS id.
+            for meta in new_meta:
+                meta["vector_id"] = None
+                self.chunks_metadata.append(meta)
 
         return len(new_chunks)
 
@@ -114,14 +139,16 @@ class RAGService:
         file_ids: list[int] | None = None,
         top_k: int = 3,
     ) -> dict[str, Any]:
-        # Filter metadata by user owner_id and requested file_ids
-        eligible_indices = [
-            idx
-            for idx, meta in enumerate(self.chunks_metadata)
-            if meta["owner_id"] == owner_id and (file_ids is None or meta["file_id"] in file_ids)
-        ]
+        requested_file_ids = set(file_ids) if file_ids is not None else None
 
-        if not eligible_indices:
+        def _is_eligible(meta: dict[str, Any]) -> bool:
+            if meta["owner_id"] != owner_id:
+                return False
+            return requested_file_ids is None or meta["file_id"] in requested_file_ids
+
+        eligible = [meta for meta in self.chunks_metadata if _is_eligible(meta)]
+
+        if not eligible:
             return {
                 "question": question,
                 "answer": "No indexed PDF document chunks found for your query. Please index your PDF file first.",
@@ -135,27 +162,32 @@ class RAGService:
             k_search = min(top_k * 5, self._index.ntotal)
             scores, indices = self._index.search(np.array(query_vector, dtype=np.float32), k_search)
 
-            for score, idx in zip(scores[0], indices[0]):
-                if idx in eligible_indices:
-                    meta = self.chunks_metadata[idx]
-                    retrieved_sources.append(
-                        {
-                            "file_id": meta["file_id"],
-                            "filename": meta["filename"],
-                            "page_number": meta["page_number"],
-                            "score": float(score),
-                            "snippet": meta["text"],
-                        }
-                    )
+            for score, vector_id in zip(scores[0], indices[0]):
+                if vector_id < 0:  # FAISS pads short result sets with -1
+                    continue
+                # Resolve through the explicit id map, then re-check ownership on the
+                # record we actually retrieved.
+                meta = self._vector_id_to_meta.get(int(vector_id))
+                if meta is None or not _is_eligible(meta):
+                    continue
+                retrieved_sources.append(
+                    {
+                        "file_id": meta["file_id"],
+                        "filename": meta["filename"],
+                        "page_number": meta["page_number"],
+                        "score": float(score),
+                        "snippet": meta["text"],
+                    }
+                )
                 if len(retrieved_sources) >= top_k:
                     break
         else:
             # Simple keyword search fallback
             keywords = question.lower().split()
             scored_meta = []
-            for idx in eligible_indices:
-                meta = self.chunks_metadata[idx]
-                score = sum(1.0 for kw in keywords if kw in meta["text"].lower())
+            for meta in eligible:
+                text_lower = meta["text"].lower()
+                score = sum(1.0 for kw in keywords if kw in text_lower)
                 if score > 0:
                     scored_meta.append((score, meta))
 

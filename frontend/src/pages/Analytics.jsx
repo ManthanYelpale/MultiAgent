@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useCallback } from "react";
-import {
-  TrendingUp, AlertTriangle, Sparkles, FileText, Loader2, AlertCircle,
-  LayoutDashboard, Download
-} from "lucide-react";
+import { Loader2, AlertCircle, Download } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import Board from "../components/dashboard/Board";
+import ColumnDropdown from "../components/analytics/ColumnDropdown";
+import { downloadProtectedFile } from "../lib/download";
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:8000/api/v1";
 
@@ -13,6 +12,10 @@ export default function Analytics() {
   const [files, setFiles] = useState([]);
   const [selectedFile, setSelectedFile] = useState(null);
   const [isLoadingFiles, setIsLoadingFiles] = useState(true);
+
+  // Column list for the selected dataset
+  const [columns, setColumns] = useState([]);
+  const [isLoadingColumns, setIsLoadingColumns] = useState(false);
 
   // Tab state
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -26,10 +29,25 @@ export default function Analytics() {
   const [forecast, setForecast] = useState(null);
   const [isLoadingForecast, setIsLoadingForecast] = useState(false);
 
+  // Trend
+  const [trendForm, setTrendForm] = useState({ target_column: "", window: 7 });
+  const [trend, setTrend] = useState(null);
+  const [isLoadingTrend, setIsLoadingTrend] = useState(false);
+
   // Anomalies
-  const [anomalyForm, setAnomalyForm] = useState({ feature_columns: "", contamination: 0.05 });
+  const [anomalyForm, setAnomalyForm] = useState({ column_to_check: "", contamination: 0.05 });
   const [anomalies, setAnomalies] = useState(null);
   const [isLoadingAnomalies, setIsLoadingAnomalies] = useState(false);
+
+  // Segmentation
+  const [segmentationForm, setSegmentationForm] = useState({
+    n_clusters: 4,
+    id_column: "",
+    date_column: "",
+    monetary_column: "",
+  });
+  const [segmentation, setSegmentation] = useState(null);
+  const [isLoadingSegmentation, setIsLoadingSegmentation] = useState(false);
 
   // Reports
   const [reportForm, setReportForm] = useState({ target_column: "", date_column: "", export_format: "pdf" });
@@ -45,7 +63,6 @@ export default function Analytics() {
       });
       if (!res.ok) throw new Error("Failed to load files");
       const data = await res.json();
-      // Only tabular files for analytics
       setFiles(data.filter((f) => f.file_type === "csv" || f.file_type === "xlsx"));
     } catch (err) {
       setError(err.message);
@@ -58,6 +75,32 @@ export default function Analytics() {
     fetchFiles();
   }, [fetchFiles]);
 
+  useEffect(() => {
+    if (!selectedFile) {
+      setColumns([]);
+      return;
+    }
+    const fetchColumns = async () => {
+      setIsLoadingColumns(true);
+      try {
+        const res = await fetch(`${API_BASE_URL}/datasets/${selectedFile.id}/columns`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setColumns(data.columns || []);
+        } else {
+          setColumns([]);
+        }
+      } catch (err) {
+        setColumns([]);
+      } finally {
+        setIsLoadingColumns(false);
+      }
+    };
+    fetchColumns();
+  }, [selectedFile, token]);
+
   const apiCall = async (url, body, setLoading, setResult) => {
     setLoading(true);
     setError(null);
@@ -68,8 +111,8 @@ export default function Analytics() {
         body: JSON.stringify(body),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || "Request failed");
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || `Request failed (${res.status})`);
       }
       const data = await res.json();
       setResult(data);
@@ -95,16 +138,42 @@ export default function Analytics() {
     }, setIsLoadingForecast, setForecast);
   };
 
+  const runTrend = () => {
+    if (!selectedFile || !trendForm.target_column) return;
+    apiCall("/analytics/trend", {
+      file_id: selectedFile.id,
+      target_column: trendForm.target_column,
+      window: trendForm.window,
+    }, setIsLoadingTrend, setTrend);
+  };
+
   const runAnomalies = () => {
     if (!selectedFile) return;
-    const cols = anomalyForm.feature_columns
-      ? anomalyForm.feature_columns.split(",").map((c) => c.trim()).filter(Boolean)
-      : null;
+    const cols = anomalyForm.column_to_check ? [anomalyForm.column_to_check] : null;
     apiCall("/analytics/anomalies", {
       file_id: selectedFile.id,
       feature_columns: cols,
       contamination: anomalyForm.contamination,
     }, setIsLoadingAnomalies, setAnomalies);
+  };
+
+  const runSegmentation = () => {
+    if (!selectedFile) return;
+    apiCall("/analytics/segmentation", {
+      file_id: selectedFile.id,
+      n_clusters: segmentationForm.n_clusters,
+      id_column: segmentationForm.id_column || null,
+      date_column: segmentationForm.date_column || null,
+      monetary_column: segmentationForm.monetary_column || null,
+    }, setIsLoadingSegmentation, setSegmentation);
+  };
+
+  const handleDownload = async (url, filename) => {
+    try {
+      await downloadProtectedFile(url, token, filename);
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   const runReport = () => {
@@ -118,18 +187,20 @@ export default function Analytics() {
   };
 
   const tabs = [
-    { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { key: "insights", label: "AI Insights", icon: Sparkles },
-    { key: "forecast", label: "Forecast", icon: TrendingUp },
-    { key: "anomalies", label: "Anomalies", icon: AlertTriangle },
-    { key: "reports", label: "Reports", icon: FileText },
+    { key: "dashboard", label: "Dashboard" },
+    { key: "insights", label: "AI Insights" },
+    { key: "forecast", label: "Forecast" },
+    { key: "trend", label: "Trend" },
+    { key: "anomalies", label: "Anomalies" },
+    { key: "segmentation", label: "Segmentation" },
+    { key: "reports", label: "Reports" },
   ];
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-12 space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Analytics</h1>
-        <p className="text-sm text-slate-500 mt-1">Run AI insights, forecasts, anomaly detection, and generate reports from your uploaded files.</p>
+        <p className="text-sm text-slate-500 mt-1">Run AI insights, forecasts, anomaly detection, customer segmentation, and generate reports from your uploaded files.</p>
       </div>
 
       {/* File Selector */}
@@ -144,33 +215,50 @@ export default function Analytics() {
             {files.map((f) => (
               <button
                 key={f.id}
-                onClick={() => { setSelectedFile(f); setActiveTab("dashboard"); setInsights(null); setForecast(null); setAnomalies(null); setReport(null); setError(null); }}
+                onClick={() => {
+                  setSelectedFile(f);
+                  setActiveTab("dashboard");
+                  setInsights(null);
+                  setForecast(null);
+                  setTrend(null);
+                  setAnomalies(null);
+                  setSegmentation(null);
+                  setReport(null);
+                  setError(null);
+                }}
                 className={`p-3 rounded-xl border text-left text-xs transition-all cursor-pointer ${
                   selectedFile?.id === f.id
-                    ? "border-violet-300 bg-violet-50 text-violet-700"
-                    : "border-slate-200 bg-slate-50 hover:border-slate-300 text-slate-700"
+                    ? "border-violet-300 bg-violet-50 text-violet-700 font-semibold"
+                    : "border-slate-200 bg-white hover:border-slate-300 text-slate-700"
                 }`}
               >
-                <p className="font-semibold truncate">{f.original_filename}</p>
-                <p className="text-[10px] text-slate-400 mt-0.5">{f.row_count?.toLocaleString()} rows · {f.column_count} cols</p>
+                <div className="font-medium truncate">{f.original_filename}</div>
+                <div className="text-[10px] text-slate-400 mt-0.5">{f.file_type.toUpperCase()}</div>
               </button>
             ))}
           </div>
         )}
       </div>
 
-      {/* Tabs */}
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3 text-red-700 text-xs">
+          <AlertCircle size={16} className="mt-0.5 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
       {selectedFile && (
         <>
-          <div className="inline-flex p-1.5 bg-slate-100/80 rounded-xl overflow-x-auto max-w-full hide-scrollbar">
+          {/* Sub-Navigation Tabs */}
+          <div className="flex flex-wrap border-b-2 border-slate-200 gap-x-6 sm:gap-x-8 gap-y-2">
             {tabs.map((t) => (
               <button
                 key={t.key}
                 onClick={() => setActiveTab(t.key)}
-                className={`flex items-center justify-center px-8 py-3 text-sm font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                className={`px-3 py-3 sm:px-4 sm:py-3.5 text-sm sm:text-base font-bold border-b-2 -mb-[2px] transition-all cursor-pointer ${
                   activeTab === t.key
-                    ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-900/5"
-                    : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
+                    ? "border-violet-600 text-violet-700"
+                    : "border-transparent text-slate-500 hover:text-slate-800"
                 }`}
               >
                 {t.label}
@@ -178,10 +266,9 @@ export default function Analytics() {
             ))}
           </div>
 
-          {/* Error */}
-          {error && (
-            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs font-medium flex items-center gap-2">
-              <AlertCircle size={16} /> {error}
+          {isLoadingColumns && (
+            <div className="flex items-center gap-2 text-xs text-slate-400 py-1">
+              <Loader2 size={12} className="animate-spin" /> Loading columns from dataset...
             </div>
           )}
 
@@ -190,9 +277,9 @@ export default function Analytics() {
             <Board fileId={selectedFile.id} columnsPreview={selectedFile.columns_preview} />
           )}
 
-          {/* Insights Tab */}
+          {/* AI Insights Tab */}
           {activeTab === "insights" && (
-            <div className="space-y-4">
+            <div className="space-y-4 pt-4">
               <button
                 onClick={runInsights}
                 disabled={isLoadingInsights}
@@ -214,24 +301,21 @@ export default function Analytics() {
           {activeTab === "forecast" && (
             <div className="space-y-6 pt-4">
               <div className="grid sm:grid-cols-3 gap-4 max-w-3xl">
-                <div>
-                  <label className="text-[11px] font-semibold text-slate-500 uppercase">Target column *</label>
-                  <input
-                    value={forecastForm.target_column}
-                    onChange={(e) => setForecastForm((p) => ({ ...p, target_column: e.target.value }))}
-                    placeholder="e.g. revenue"
-                    className="mt-1 w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] font-semibold text-slate-500 uppercase">Date column</label>
-                  <input
-                    value={forecastForm.date_column}
-                    onChange={(e) => setForecastForm((p) => ({ ...p, date_column: e.target.value }))}
-                    placeholder="e.g. date"
-                    className="mt-1 w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
-                  />
-                </div>
+                <ColumnDropdown
+                  label="Target Column"
+                  required
+                  columns={columns}
+                  value={forecastForm.target_column}
+                  onChange={(val) => setForecastForm((p) => ({ ...p, target_column: val }))}
+                  placeholder="Select target column..."
+                />
+                <ColumnDropdown
+                  label="Date Column (Optional)"
+                  columns={columns}
+                  value={forecastForm.date_column}
+                  onChange={(val) => setForecastForm((p) => ({ ...p, date_column: val }))}
+                  placeholder="Select date column..."
+                />
                 <div>
                   <label className="text-[11px] font-semibold text-slate-500 uppercase">Horizon (days)</label>
                   <input
@@ -261,19 +345,58 @@ export default function Analytics() {
             </div>
           )}
 
+          {/* Trend Tab */}
+          {activeTab === "trend" && (
+            <div className="space-y-6 pt-4">
+              <div className="grid sm:grid-cols-2 gap-4 max-w-xl">
+                <ColumnDropdown
+                  label="Metric Column"
+                  required
+                  columns={columns}
+                  value={trendForm.target_column}
+                  onChange={(val) => setTrendForm((p) => ({ ...p, target_column: val }))}
+                  placeholder="Select metric column..."
+                />
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-500 uppercase">Window Size</label>
+                  <input
+                    type="number"
+                    value={trendForm.window}
+                    onChange={(e) => setTrendForm((p) => ({ ...p, window: parseInt(e.target.value) || 7 }))}
+                    className="mt-1 w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+                  />
+                </div>
+              </div>
+              <button
+                onClick={runTrend}
+                disabled={isLoadingTrend || !trendForm.target_column}
+                className="inline-flex items-center gap-2 bg-black hover:bg-transparent hover:text-black border-2 border-black text-white text-xs font-semibold px-6 py-2.5 rounded-full transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-sm hover:shadow-none"
+              >
+                {isLoadingTrend && <Loader2 size={14} className="animate-spin" />}
+                Analyze Trend
+              </button>
+              {trend && (
+                <div className="pt-4">
+                  <h3 className="text-sm font-semibold text-slate-900 mb-3">Trend Analysis</h3>
+                  <pre className="text-xs text-slate-700 bg-slate-50/50 rounded-xl p-4 overflow-x-auto whitespace-pre-wrap border border-slate-100 max-w-4xl">
+                    {JSON.stringify(trend, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Anomalies Tab */}
           {activeTab === "anomalies" && (
             <div className="space-y-6 pt-4">
               <div className="grid sm:grid-cols-2 gap-4 max-w-2xl">
-                <div>
-                  <label className="text-[11px] font-semibold text-slate-500 uppercase">Feature columns (comma-separated)</label>
-                  <input
-                    value={anomalyForm.feature_columns}
-                    onChange={(e) => setAnomalyForm((p) => ({ ...p, feature_columns: e.target.value }))}
-                    placeholder="e.g. revenue, cost (leave empty for all numeric)"
-                    className="mt-1 w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
-                  />
-                </div>
+                <ColumnDropdown
+                  label="Column to check (Optional)"
+                  columns={columns}
+                  value={anomalyForm.column_to_check}
+                  onChange={(val) => setAnomalyForm((p) => ({ ...p, column_to_check: val }))}
+                  placeholder="All numeric columns (default)"
+                />
                 <div>
                   <label className="text-[11px] font-semibold text-slate-500 uppercase">Contamination rate</label>
                   <input
@@ -306,28 +429,83 @@ export default function Analytics() {
             </div>
           )}
 
+          {/* Segmentation Tab */}
+          {activeTab === "segmentation" && (
+            <div className="space-y-6 pt-4">
+              <div className="grid sm:grid-cols-4 gap-4 max-w-4xl">
+                <ColumnDropdown
+                  label="Customer ID Field (Optional)"
+                  columns={columns}
+                  value={segmentationForm.id_column}
+                  onChange={(val) => setSegmentationForm((p) => ({ ...p, id_column: val }))}
+                  placeholder="Auto-detect ID column"
+                />
+                <ColumnDropdown
+                  label="Date Field (Optional)"
+                  columns={columns}
+                  value={segmentationForm.date_column}
+                  onChange={(val) => setSegmentationForm((p) => ({ ...p, date_column: val }))}
+                  placeholder="Auto-detect date column"
+                />
+                <ColumnDropdown
+                  label="Amount Field (Optional)"
+                  columns={columns}
+                  value={segmentationForm.monetary_column}
+                  onChange={(val) => setSegmentationForm((p) => ({ ...p, monetary_column: val }))}
+                  placeholder="Auto-detect amount column"
+                />
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-500 uppercase">Number of Clusters</label>
+                  <input
+                    type="number"
+                    min="2"
+                    max="10"
+                    value={segmentationForm.n_clusters}
+                    onChange={(e) => setSegmentationForm((p) => ({ ...p, n_clusters: parseInt(e.target.value) || 4 }))}
+                    className="mt-1 w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+                  />
+                </div>
+              </div>
+              <button
+                onClick={runSegmentation}
+                disabled={isLoadingSegmentation}
+                className="inline-flex items-center gap-2 bg-black hover:bg-transparent hover:text-black border-2 border-black text-white text-xs font-semibold px-6 py-2.5 rounded-full transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-sm hover:shadow-none"
+              >
+                {isLoadingSegmentation && <Loader2 size={14} className="animate-spin" />}
+                Run Segmentation
+              </button>
+              {segmentation && (
+                <div className="pt-4">
+                  <h3 className="text-sm font-semibold text-slate-900 mb-3">
+                    Segmentation Summary ({segmentation.n_clusters} clusters)
+                  </h3>
+                  <pre className="text-xs text-slate-700 bg-slate-50/50 rounded-xl p-4 overflow-x-auto whitespace-pre-wrap border border-slate-100 max-w-4xl">
+                    {JSON.stringify(segmentation, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Reports Tab */}
           {activeTab === "reports" && (
             <div className="space-y-6 pt-4">
               <div className="grid sm:grid-cols-3 gap-4 max-w-3xl">
-                <div>
-                  <label className="text-[11px] font-semibold text-slate-500 uppercase">Target column *</label>
-                  <input
-                    value={reportForm.target_column}
-                    onChange={(e) => setReportForm((p) => ({ ...p, target_column: e.target.value }))}
-                    placeholder="e.g. revenue"
-                    className="mt-1 w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] font-semibold text-slate-500 uppercase">Date column</label>
-                  <input
-                    value={reportForm.date_column}
-                    onChange={(e) => setReportForm((p) => ({ ...p, date_column: e.target.value }))}
-                    placeholder="e.g. date"
-                    className="mt-1 w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
-                  />
-                </div>
+                <ColumnDropdown
+                  label="Target Column"
+                  required
+                  columns={columns}
+                  value={reportForm.target_column}
+                  onChange={(val) => setReportForm((p) => ({ ...p, target_column: val }))}
+                  placeholder="Select target column..."
+                />
+                <ColumnDropdown
+                  label="Date Column (Optional)"
+                  columns={columns}
+                  value={reportForm.date_column}
+                  onChange={(val) => setReportForm((p) => ({ ...p, date_column: val }))}
+                  placeholder="Select date column..."
+                />
                 <div>
                   <label className="text-[11px] font-semibold text-slate-500 uppercase">Format</label>
                   <select
@@ -355,24 +533,22 @@ export default function Analytics() {
                   <p className="text-sm text-slate-700 whitespace-pre-wrap max-w-4xl">{report.insights_summary}</p>
                   <div className="flex gap-4 pt-2">
                     {report.pdf_download_url && (
-                      <a
-                        href={`${API_BASE_URL.replace("/api/v1", "")}${report.pdf_download_url}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 text-sm font-semibold text-violet-600 hover:text-violet-800"
+                      <button
+                        type="button"
+                        onClick={() => handleDownload(report.pdf_download_url, report.pdf_filename)}
+                        className="inline-flex items-center gap-1.5 text-sm font-semibold text-violet-600 hover:text-violet-800 cursor-pointer"
                       >
                         <Download size={16} /> Download PDF
-                      </a>
+                      </button>
                     )}
                     {report.pptx_download_url && (
-                      <a
-                        href={`${API_BASE_URL.replace("/api/v1", "")}${report.pptx_download_url}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 text-sm font-semibold text-violet-600 hover:text-violet-800"
+                      <button
+                        type="button"
+                        onClick={() => handleDownload(report.pptx_download_url, report.pptx_filename)}
+                        className="inline-flex items-center gap-1.5 text-sm font-semibold text-violet-600 hover:text-violet-800 cursor-pointer"
                       >
                         <Download size={16} /> Download PPTX
-                      </a>
+                      </button>
                     )}
                   </div>
                 </div>

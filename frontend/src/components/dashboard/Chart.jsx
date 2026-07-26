@@ -47,27 +47,6 @@ export default function Chart({ chart, fileId }) {
         setLoading(false);
       }
 
-      // Fetch AI Insight for KPIs asynchronously
-      if (fetchedJson && chart.chart_type === 'kpi' && fetchedJson.value !== undefined) {
-        setInsightLoading(true);
-        try {
-          const insRes = await fetch(`${API_BASE_URL}/ai/insights`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify({
-              metric_name: chart.y_column,
-              metric_value: String(fetchedJson.value),
-              agg_function: chart.agg_function,
-              dataset_name: "Uploaded Dataset"
-            })
-          });
-          if (insRes.ok) {
-            const insJson = await insRes.json();
-            setInsight(insJson.insight);
-          }
-        } catch(e) { console.error("Insight error", e); }
-        finally { setInsightLoading(false); }
-      }
     };
     fetchData();
   }, [chart, fileId, token]);
@@ -87,13 +66,6 @@ export default function Chart({ chart, fileId }) {
         <p className="text-3xl font-bold text-slate-800 mt-1">
           {typeof data.value === 'number' ? data.value.toLocaleString() : data.value}
         </p>
-        <div className="mt-2 min-h-[40px] flex items-center justify-center">
-          {insightLoading ? (
-            <span className="text-[10px] text-slate-400 animate-pulse">Generating insight...</span>
-          ) : insight ? (
-            <span className="text-[10px] text-slate-500 italic">✨ {insight}</span>
-          ) : null}
-        </div>
       </div>
     );
   }
