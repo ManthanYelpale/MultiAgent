@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { LogOut, User, Settings, Brain } from "lucide-react";
+import { LogOut, User, Settings } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const navLinks = [
@@ -44,10 +44,7 @@ export default function Nav() {
         
         <div className="flex items-center gap-8">
           {/* Brand Logo */}
-          <Link to="/home" className="flex items-center gap-2.5 font-extrabold text-lg tracking-tight text-slate-900 group">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-violet-600 to-purple-600 text-white shadow-sm group-hover:scale-105 transition-transform">
-              <Brain size={16} />
-            </div>
+          <Link to="/home" className="font-extrabold text-xl tracking-tight text-slate-900 group">
             <span>Insyte</span>
           </Link>
 

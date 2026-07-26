@@ -1,7 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import {
-  Brain,
   ExternalLink,
   Coffee,
 } from "lucide-react";
@@ -15,9 +14,6 @@ export default function Footer() {
         
         {/* Left Side: Brand & Copyright */}
         <div className="flex items-center gap-2.5">
-          <div className="p-1.5 rounded-full bg-gradient-to-br from-violet-600 to-purple-600 text-white">
-            <Brain size={12} />
-          </div>
           <span>&copy; {currentYear} Insyte. All rights reserved.</span>
         </div>
 

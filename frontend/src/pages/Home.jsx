@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
-  Brain,
   ExternalLink,
   TrendingUp,
   CheckCircle2,
@@ -182,11 +181,8 @@ export default function Home() {
           </div>
 
           {/* AI Response Bubble */}
-          <div className="flex items-start gap-3">
-            <div className="h-7 w-7 rounded-lg bg-violet-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
-              <Brain size={14} />
-            </div>
-            <div className="rounded-2xl rounded-tl-sm bg-violet-50/80 border border-violet-100/80 px-4 py-3 text-sm text-slate-800 space-y-2 shadow-sm">
+          <div className="flex justify-start">
+            <div className="rounded-2xl rounded-tl-sm bg-violet-50/80 border border-violet-100/80 px-4 py-3 text-sm text-slate-800 space-y-2 shadow-sm max-w-[85%]">
               <p className="font-semibold text-slate-900">
                 Electronics led with $84K, up 12% from last month.
               </p>
@@ -271,10 +267,7 @@ export default function Home() {
             </div>
 
             {/* AI Summary Pill at Bottom of Chart */}
-            <div className="pt-4 border-t border-slate-800 flex items-start gap-3">
-              <div className="h-6 w-6 rounded-md bg-violet-600/20 text-violet-400 flex items-center justify-center shrink-0 mt-0.5">
-                <Brain size={13} />
-              </div>
+            <div className="pt-4 border-t border-slate-800">
               <p className="text-xs text-slate-300 leading-relaxed">
                 <span className="font-semibold text-white">Executive AI Summary:</span> Revenue grew <span className="text-emerald-400 font-semibold">+12.4% MoM</span> in September. Time-series projection estimates $200K total Q4 revenue.
               </p>
