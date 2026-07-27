@@ -30,7 +30,11 @@ def get_current_user(
 
     # Revocation: a token issued before the user's version was bumped (logout-everywhere,
     # password change) is rejected even though its signature and expiry are still valid.
-    if claims.get("ver", 0) != user.token_version:
+    # Coerce both sides to int so a NULL/missing token_version column (e.g. a dev DB that
+    # predates this column) can't lock every user out with a spurious 401.
+    token_ver = int(claims.get("ver") or 0)
+    user_ver = int(user.token_version or 0)
+    if token_ver != user_ver:
         raise credentials_exception
 
     if not user.is_active:

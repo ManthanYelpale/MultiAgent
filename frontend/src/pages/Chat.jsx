@@ -1,6 +1,7 @@
-import React, { useState, useRef, useEffect } from "react";
-import { Send, User, Loader2, AlertCircle, Copy, Check, Plus, Sparkles, PanelLeftClose, PanelLeft } from "lucide-react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import { Send, User, Loader2, AlertCircle, Copy, Check, Plus, Sparkles, FileText, Table } from "lucide-react";
 import { apiFetch } from "../lib/api";
+import FilePicker from "../components/chat/FilePicker";
 
 export default function Chat() {
   const [messages, setMessages] = useState([]);
@@ -8,7 +9,10 @@ export default function Chat() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [copiedIndex, setCopiedIndex] = useState(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // Attach a file so the assistant can answer questions about its actual contents.
+  const [files, setFiles] = useState([]);
+  const [activeFileId, setActiveFileId] = useState("");
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -25,23 +29,32 @@ export default function Chat() {
     scrollToBottom();
   }, [messages, isLoading]);
 
+  // Load the user's files for the attach picker.
   useEffect(() => {
-    const fetchHistory = async () => {
-      try {
-        const data = await apiFetch(`/ai/chat/history`);
-        if (Array.isArray(data) && data.length > 0) setMessages(data);
-      } catch (e) {
-        console.error("Failed to load history", e);
-      }
-    };
-    fetchHistory();
+    apiFetch(`/files`).then(setFiles).catch(() => setFiles([]));
   }, []);
 
+  // History is scoped to the attached file (or global when none). Reload on switch.
+  const loadHistory = useCallback(async (fileId) => {
+    try {
+      const qs = fileId ? `?file_id=${fileId}` : "";
+      const data = await apiFetch(`/ai/chat/history${qs}`);
+      setMessages(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error("Failed to load history", e);
+      setMessages([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadHistory(activeFileId);
+  }, [activeFileId, loadHistory]);
+
   const presetPrompts = [
-    { label: "Synthesize Data", text: "Turn my sales data into 5 key bullet points." },
-    { label: "Creative Brainstorm", text: "Generate 3 taglines for our new product." },
-    { label: "Check Facts", text: "Compare GDPR and CCPA." },
-    { label: "Draft Email", text: "Draft an update email to stakeholders." }
+    { label: "Summarize this file", text: "Give me a 5-bullet summary of this dataset." },
+    { label: "Key metrics", text: "What are the totals and averages of the numeric columns?" },
+    { label: "Spot issues", text: "Are there any anomalies or data-quality problems?" },
+    { label: "Draft email", text: "Draft a short update email to stakeholders about this data." },
   ];
 
   const handleSend = async (customText = null) => {
@@ -49,9 +62,7 @@ export default function Chat() {
     if (!textToSend.trim() || isLoading) return;
 
     const userMessage = { role: "user", content: textToSend.trim() };
-    const updatedMessages = [...messages, userMessage];
-
-    setMessages(updatedMessages);
+    setMessages((prev) => [...prev, userMessage]);
     if (!customText) setInput("");
     setIsLoading(true);
     setError(null);
@@ -59,7 +70,10 @@ export default function Chat() {
     try {
       const data = await apiFetch(`/ai/chat`, {
         method: "POST",
-        body: { message: textToSend.trim() },
+        body: {
+          message: textToSend.trim(),
+          file_id: activeFileId ? Number(activeFileId) : null,
+        },
       });
       setMessages((prev) => [
         ...prev,
@@ -91,80 +105,41 @@ export default function Chat() {
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
+  const activeFile = files.find((f) => String(f.id) === String(activeFileId));
+
   return (
-    <div className="w-full max-w-7xl mx-auto h-[calc(100vh-6.5rem)] flex py-4 animate-show-panel relative">
-      
-      {/* Sidebar Overlay (Mobile & Desktop) */}
-      <div 
-        className={`fixed inset-0 z-40 bg-slate-900/20 backdrop-blur-sm transition-opacity md:hidden ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} 
-        onClick={() => setIsSidebarOpen(false)}
-      />
-
-      {/* Sidebar Controls - Gemini Style Collapsible */}
-      <div className={`absolute md:relative z-50 h-full bg-white transition-all duration-300 ease-in-out shrink-0 overflow-hidden ${
-        isSidebarOpen ? 'w-[280px] opacity-100 translate-x-0' : 'w-0 opacity-0 -translate-x-full md:translate-x-0 md:opacity-0 md:w-0'
-      }`}>
-        <div className="w-[280px] h-full flex flex-col p-3 pt-14 md:pt-3">
-          <div className="flex items-center justify-between mb-4 px-2">
-             <span className="font-semibold text-lg text-slate-800 flex items-center gap-2">
-               Assistant
-             </span>
-             <button onClick={() => setIsSidebarOpen(false)} className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-200/50 rounded-full transition-colors"><PanelLeftClose size={20} /></button>
-          </div>
-          
-          <div className="space-y-1 flex-grow overflow-y-auto custom-scrollbar pb-4">
-            <button
-              onClick={() => { handleClear(); setIsSidebarOpen(false); }}
-              className="w-full py-3 px-4 rounded-full bg-[#e8ebf1] hover:bg-[#dfe3ea] text-slate-800 font-semibold text-sm flex items-center gap-3 transition-colors cursor-pointer mb-2"
-            >
-              <Plus size={18} />
-              <span>New chat</span>
-            </button>
-
-            {/* Real, intent-routed assistant. No fabricated history — the sidebar only
-                shows what the app can actually deliver. */}
-            <div className="pt-4 px-4 text-[13px] text-slate-500 leading-relaxed">
-              <p className="font-medium text-slate-700 mb-1">About this assistant</p>
-              <p>
-                Ask a data question and it routes automatically: SQL for metrics, document
-                search for your indexed PDFs, or a general answer. Chat history is saved to
-                your account and reloads when you return.
-              </p>
-            </div>
-          </div>
+    <div className="w-full max-w-5xl mx-auto h-[calc(100vh-6.5rem)] flex flex-col py-4 animate-show-panel">
+      {/* Header row — part of the flex flow, so it can never overlap the messages. */}
+      <div className="flex items-center justify-between gap-3 px-4 pb-3 border-b border-slate-100 shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-xs font-semibold text-slate-400 shrink-0 hidden sm:inline">Ask about</span>
+          <FilePicker files={files} value={activeFileId} onChange={setActiveFileId} />
         </div>
+        <button
+          onClick={handleClear}
+          className="px-3 py-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors flex items-center gap-1.5 text-sm font-medium shrink-0 cursor-pointer"
+          title="New chat"
+        >
+          <Plus size={18} /> <span className="hidden sm:inline">New chat</span>
+        </button>
       </div>
 
-      {/* Main Chat Interface */}
+      {/* Main Chat Interface (sidebar removed) */}
       <div className="flex-grow bg-white flex flex-col relative overflow-hidden transition-all duration-300">
-        
-        {/* Top bar with Toggle Button */}
-        <div className="absolute top-0 left-0 p-4 z-10 flex items-center">
-           {!isSidebarOpen && (
-             <button 
-               onClick={() => setIsSidebarOpen(true)}
-               className="p-2 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors group flex items-center gap-2"
-               title="Open sidebar"
-             >
-               <PanelLeft size={20} className="group-hover:text-slate-800" />
-             </button>
-           )}
-           {isSidebarOpen && <div className="hidden md:block w-8" />}
-           {/* Add a button for "New Chat" on the top right like ChatGPT if sidebar is closed */}
-           {!isSidebarOpen && (
-              <button onClick={handleClear} className="p-2 ml-2 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors" title="New Chat">
-                 <Plus size={20} />
-              </button>
-           )}
-        </div>
 
         {/* Empty State */}
         {isChatEmpty && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center p-8 overflow-y-auto pt-16">
+          <div className="absolute inset-0 flex flex-col items-center justify-center p-8 overflow-y-auto">
             <div className="max-w-2xl w-full flex flex-col items-center animate-show-panel">
-              {/* Giant Glowing Orb Placeholder (Removed) */}
-              
-              <h2 className="text-3xl font-semibold text-slate-800 mb-10 tracking-tight">How can I help you today?</h2>
+              <h2 className="text-3xl font-semibold text-slate-800 mb-3 tracking-tight">How can I help you today?</h2>
+              {activeFile ? (
+                <p className="text-sm text-slate-500 mb-8 flex items-center gap-1.5">
+                  {activeFile.file_type === "pdf" ? <FileText size={15} /> : <Table size={15} />}
+                  Answering questions about <span className="font-semibold text-slate-700">{activeFile.original_filename}</span>
+                </p>
+              ) : (
+                <p className="text-sm text-slate-400 mb-8">Attach a file above to ask about your data, or just chat.</p>
+              )}
 
               <div className="w-full relative shadow-[0_4px_24px_rgb(0,0,0,0.06)] rounded-3xl border border-slate-200 bg-white mb-6">
                 <textarea
@@ -207,7 +182,7 @@ export default function Chat() {
         {/* Active Chat State */}
         {!isChatEmpty && (
           <>
-            <div className="flex-grow overflow-y-auto p-6 md:p-8 space-y-8 pb-32 pt-16">
+            <div className="flex-grow overflow-y-auto p-6 md:p-8 space-y-8 pb-32 pt-8">
               {messages.map((msg, idx) => {
                 const isUser = msg.role === "user";
                 return (

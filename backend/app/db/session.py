@@ -1,6 +1,6 @@
 import logging
 
-from sqlalchemy import create_engine, pool
+from sqlalchemy import create_engine, event, pool
 from sqlalchemy.orm import sessionmaker
 
 from app.core.config import settings
@@ -19,6 +19,16 @@ engine = create_engine(
     # session sees an empty database.
     poolclass=pool.StaticPool if settings.DATABASE_URL.endswith(":memory:") else None,
 )
+
+if is_sqlite:
+    # SQLite ignores foreign keys unless told otherwise. Enabling it means the test
+    # suite enforces the same referential integrity as Postgres, so FK-ordering bugs in
+    # delete flows surface in tests instead of only in production.
+    @event.listens_for(engine, "connect")
+    def _enable_sqlite_fk(dbapi_conn, _record):
+        cur = dbapi_conn.cursor()
+        cur.execute("PRAGMA foreign_keys=ON")
+        cur.close()
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

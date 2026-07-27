@@ -144,9 +144,11 @@ def delete_account(
     import shutil
 
     from app.core.config import settings
+    from app.models.audit import AuditLog
     from app.models.chat import ChatHistory
     from app.models.cleaning import CleanedDataset, CleaningConfig, CleaningTemplate
     from app.models.dashboard import Dashboard
+    from app.models.dashboard import Chart
     from app.models.job import Job
     from app.models.password_reset import PasswordResetToken
     from app.models.uploaded_file import UploadedFile
@@ -154,11 +156,16 @@ def delete_account(
 
     user_id = current_user.id
     file_ids = [f.id for f in db.query(UploadedFile.id).filter(UploadedFile.owner_id == user_id)]
+    dashboard_ids = [d for (d,) in db.query(Dashboard.id).filter(Dashboard.user_id == user_id)]
 
     rag_service.purge_user(user_id)
 
-    # Delete dependent rows explicitly so this works regardless of whether the DB
-    # enforces ON DELETE CASCADE (SQLite in tests does not by default).
+    # Delete dependent rows explicitly, in strict foreign-key order. Bulk query deletes
+    # execute immediately in SQL order, so children are gone before parents — unlike ORM
+    # db.delete() whose flush ordering doesn't know about FKs lacking an ORM relationship.
+    if dashboard_ids:
+        db.query(Chart).filter(Chart.dashboard_id.in_(dashboard_ids)).delete(synchronize_session=False)
+    db.query(Dashboard).filter(Dashboard.user_id == user_id).delete(synchronize_session=False)
     if file_ids:
         db.query(CleanedDataset).filter(CleanedDataset.file_id.in_(file_ids)).delete(synchronize_session=False)
         db.query(CleaningConfig).filter(CleaningConfig.file_id.in_(file_ids)).delete(synchronize_session=False)
@@ -166,14 +173,16 @@ def delete_account(
     db.query(CleaningTemplate).filter(CleaningTemplate.user_id == user_id).delete(synchronize_session=False)
     db.query(PasswordResetToken).filter(PasswordResetToken.user_id == user_id).delete(synchronize_session=False)
     db.query(Job).filter(Job.user_id == user_id).delete(synchronize_session=False)
-    for dash in db.query(Dashboard).filter(Dashboard.user_id == user_id).all():
-        db.delete(dash)  # cascades to charts via relationship
     db.query(UploadedFile).filter(UploadedFile.owner_id == user_id).delete(synchronize_session=False)
 
-    # Audit row keeps the record with user_id set to NULL (FK is ON DELETE SET NULL).
-    record_audit(db, "user.account_delete", user_id=user_id,
+    # Detach audit rows from the user first (the FK is ON DELETE SET NULL on Postgres,
+    # but do it explicitly so it also holds on SQLite), then delete the user.
+    db.query(AuditLog).filter(AuditLog.user_id == user_id).update(
+        {"user_id": None}, synchronize_session=False
+    )
+    db.query(User).filter(User.id == user_id).delete(synchronize_session=False)
+    record_audit(db, "user.account_delete", user_id=None,
                  ip_address=_client_ip(request), commit=False)
-    db.delete(current_user)
     db.commit()
 
     user_dir = os.path.join(settings.UPLOAD_DIR, str(user_id))

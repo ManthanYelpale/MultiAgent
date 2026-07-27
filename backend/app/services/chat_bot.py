@@ -1,11 +1,13 @@
 import logging
 from sqlalchemy.orm import Session
 
+from app.crud.uploaded_file import get_file_for_user
 from app.models.chat import ChatHistory
 from app.services.prompts import prompts
 from app.services.llm import llm
 from app.services.sql import generate_and_execute_sql
 from app.services.rag import rag_service
+from app.services.file_qa import answer_file_question
 
 logger = logging.getLogger(__name__)
 
@@ -18,12 +20,16 @@ class ChatOrchestrator:
         message: str,
         chat_history: list[dict[str, str]]
     ) -> dict[str, str]:
-        
+
         # 1. Classify Intent
         intent = self._classify_intent(message)
 
-        # 2. Route
-        if intent == "sql":
+        # 2. Route. When a file is attached, data questions are answered from that file's
+        #    actual contents (the NL-to-SQL agent only sees the app database, never the
+        #    user's uploaded rows, so it cannot answer questions about a file).
+        if file_id and intent in ("sql", "rag"):
+            reply, intent = self._route_with_file(db, user_id, file_id, message, chat_history)
+        elif intent == "sql":
             reply = self._route_sql(user_id, message)
         elif intent == "rag":
             reply = self._route_rag(user_id, message, file_id)
@@ -37,6 +43,19 @@ class ChatOrchestrator:
             "reply": reply,
             "intent": intent
         }
+
+    def _route_with_file(self, db, user_id, file_id, message, chat_history):
+        """Answer against an attached file: tabular -> data QA, PDF -> RAG."""
+        db_file = get_file_for_user(db, user_id, file_id)
+        if not db_file:
+            return "I couldn't find that file.", "general"
+        if db_file.file_type == "pdf":
+            return self._route_rag(user_id, message, file_id), "rag"
+        # CSV / Excel
+        answer = answer_file_question(db, user_id, file_id, message)
+        if answer is None:
+            return self._route_general(message, chat_history), "general"
+        return answer, "file_qa"
 
     def _classify_intent(self, message: str) -> str:
         system_prompt = prompts.render("intent_classifier")

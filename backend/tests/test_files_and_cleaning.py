@@ -39,6 +39,33 @@ def test_delete_file_removes_it(client, auth_headers):
     assert client.get(f"/api/v1/files/{fid}", headers=auth_headers).status_code == 404
 
 
+def test_delete_file_with_dashboard_and_charts(client, auth_headers):
+    # Reproduces the production FK-violation: a file referenced by a dashboard (and its
+    # charts) must still delete cleanly. With SQLite FK enforcement on, wrong ordering
+    # fails here just as it did on Postgres.
+    fid = _upload(client, auth_headers, "dash.csv", "region,sales\nUS,10\nEU,20\n").json()["id"]
+    # Skip cleaning so the dashboard endpoint builds it, then fetch to auto-create charts.
+    client.post(f"/api/v1/cleaning/file/{fid}/skip", headers=auth_headers)
+    dash = client.get(f"/api/v1/dashboards/file/{fid}", headers=auth_headers)
+    assert dash.status_code == 200
+    assert client.request("DELETE", f"/api/v1/files/{fid}", headers=auth_headers).status_code == 204
+    assert client.get(f"/api/v1/files/{fid}", headers=auth_headers).status_code == 404
+
+
+def test_delete_account_with_data(client):
+    # Account deletion must also cascade through dashboards/charts without FK errors.
+    import uuid
+    email = f"del_{uuid.uuid4().hex[:8]}@example.com"
+    client.post("/api/v1/auth/signup", json={"email": email, "password": "Str0ngPassw0rd!"})
+    token = client.post("/api/v1/auth/login",
+                        data={"username": email, "password": "Str0ngPassw0rd!"}).json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+    fid = _upload(client, headers, "acc.csv", "region,sales\nUS,10\nEU,20\n").json()["id"]
+    client.post(f"/api/v1/cleaning/file/{fid}/skip", headers=headers)
+    client.get(f"/api/v1/dashboards/file/{fid}", headers=headers)
+    assert client.request("DELETE", "/api/v1/auth/me", headers=headers).status_code == 204
+
+
 # --- data-integrity units (no HTTP) ---------------------------------------
 def test_auto_safe_preserves_legitimate_values():
     df = pd.DataFrame({"ticker": ["A", "-", "NULL", "B"], "qty": [1, 2, 3, 4]})

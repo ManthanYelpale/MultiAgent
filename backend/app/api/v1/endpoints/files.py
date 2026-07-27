@@ -13,9 +13,10 @@ from app.core.config import settings
 from app.crud.uploaded_file import create_uploaded_file, get_file_for_user, list_files_for_user
 from app.db.session import get_db
 from app.models.user import User
+from app.models.uploaded_file import UploadedFile
 from app.models.cleaning import CleanedDataset, CleaningConfig
 from app.models.chat import ChatHistory
-from app.models.dashboard import Dashboard
+from app.models.dashboard import Dashboard, Chart
 from app.schemas.uploaded_file import UploadedFileOut
 from app.services.storage import get_storage_service
 from app.services.profile import run_profiler
@@ -171,14 +172,22 @@ def delete_file(
         if cleaned.storage_path:
             storage.delete_file(current_user.id, cleaned.storage_path)
 
-    # Purge dependent rows explicitly (SQLite in tests has no ON DELETE CASCADE unless
-    # enforced), then the file row itself.
-    db.query(CleanedDataset).filter(CleanedDataset.file_id == file_id).delete()
-    db.query(CleaningConfig).filter(CleaningConfig.file_id == file_id).delete()
-    db.query(ChatHistory).filter(ChatHistory.file_id == file_id).update({"file_id": None})
-    for dash in db.query(Dashboard).filter(Dashboard.file_id == file_id).all():
-        db.delete(dash)  # cascades to charts
-    db.delete(db_file)
+    # Delete dependent rows in strict foreign-key order with immediate bulk deletes.
+    # An ORM db.delete(parent) relies on the unit-of-work knowing the dependency, but
+    # there is no ORM relationship from UploadedFile to Dashboard, so the flush could
+    # delete the file before its dashboards and violate the FK on Postgres.
+    dashboard_ids = [
+        d_id for (d_id,) in db.query(Dashboard.id).filter(Dashboard.file_id == file_id)
+    ]
+    if dashboard_ids:
+        db.query(Chart).filter(Chart.dashboard_id.in_(dashboard_ids)).delete(synchronize_session=False)
+        db.query(Dashboard).filter(Dashboard.id.in_(dashboard_ids)).delete(synchronize_session=False)
+    db.query(CleanedDataset).filter(CleanedDataset.file_id == file_id).delete(synchronize_session=False)
+    db.query(CleaningConfig).filter(CleaningConfig.file_id == file_id).delete(synchronize_session=False)
+    db.query(ChatHistory).filter(ChatHistory.file_id == file_id).update(
+        {"file_id": None}, synchronize_session=False
+    )
+    db.query(UploadedFile).filter(UploadedFile.id == file_id).delete(synchronize_session=False)
     db.commit()
 
     rag_service.purge_file(current_user.id, file_id)
