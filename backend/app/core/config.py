@@ -30,7 +30,7 @@ class Settings(BaseSettings):
 
     SECRET_KEY: str = "change-this-to-a-long-random-string"
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
 
     UPLOAD_DIR: str = "uploads"
     MAX_UPLOAD_MB: int = 25
