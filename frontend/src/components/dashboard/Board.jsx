@@ -170,7 +170,7 @@ export default function Board({ fileId, columnsPreview }) {
 
   return (
     <div className="space-y-4 animate-show-panel">
-      <div className="flex justify-between items-center py-2">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 py-2">
         <div>
           <h2 className="text-lg font-bold text-slate-900">{dashboard.name}</h2>
           <p className="text-sm text-slate-500">{dashboard.charts.length} charts auto-generated</p>

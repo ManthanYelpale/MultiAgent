@@ -348,8 +348,8 @@ export default function Review({ fileId, onComplete }) {
 
               {/* Expandable Per-Column Override Sub-Table */}
               {isExpanded && (
-                <div className="border-t border-slate-100 bg-slate-50/70 p-4">
-                  <table className="w-full text-left text-xs">
+                <div className="border-t border-slate-100 bg-slate-50/70 p-4 overflow-x-auto">
+                  <table className="w-full min-w-[520px] text-left text-xs">
                     <thead className="text-[11px] uppercase font-semibold text-slate-400 border-b border-slate-200">
                       <tr>
                         <th className="pb-2">Column Name</th>
