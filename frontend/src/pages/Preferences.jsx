@@ -1,6 +1,5 @@
 import React, { useState } from "react";
-import { Bell, Monitor, Moon, Sun, Laptop } from "lucide-react";
-import { useTheme } from "../context/ThemeContext";
+import { Bell } from "lucide-react";
 
 // Notification preferences persist to localStorage so they survive navigation. (There is
 // no server-side notification system yet; these are client preferences only.)
@@ -14,7 +13,6 @@ function loadNotifs() {
 }
 
 export default function Preferences() {
-  const { theme, setTheme } = useTheme();
   const [notifications, setNotifications] = useState(loadNotifs);
 
   const updateNotif = (patch) => {
@@ -31,43 +29,6 @@ export default function Preferences() {
       </div>
 
       <div className="space-y-6">
-        {/* Appearance Section */}
-        <div className="bg-white border border-gray-200/50 rounded-3xl shadow-sm overflow-hidden p-8">
-          <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
-            <Monitor size={20} className="text-indigo-500" />
-            Appearance
-          </h3>
-          <div className="grid grid-cols-3 gap-4">
-            <button 
-              onClick={() => setTheme("light")}
-              className={`p-4 rounded-xl border flex flex-col items-center gap-3 transition-colors ${
-                theme === "light" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"
-              }`}
-            >
-              <Sun size={24} />
-              <span className="font-medium">Light</span>
-            </button>
-            <button 
-              onClick={() => setTheme("dark")}
-              className={`p-4 rounded-xl border flex flex-col items-center gap-3 transition-colors ${
-                theme === "dark" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"
-              }`}
-            >
-              <Moon size={24} />
-              <span className="font-medium">Dark</span>
-            </button>
-            <button 
-              onClick={() => setTheme("system")}
-              className={`p-4 rounded-xl border flex flex-col items-center gap-3 transition-colors ${
-                theme === "system" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"
-              }`}
-            >
-              <Laptop size={24} />
-              <span className="font-medium">System</span>
-            </button>
-          </div>
-        </div>
-
         {/* Notifications Section */}
         <div className="bg-white border border-gray-200/50 rounded-3xl shadow-sm overflow-hidden p-8">
           <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
