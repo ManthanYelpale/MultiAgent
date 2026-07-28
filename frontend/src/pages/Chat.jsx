@@ -27,6 +27,7 @@ export default function Chat() {
 
   useEffect(() => {
     scrollToBottom();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, isLoading]);
 
   // Load the user's files for the attach picker.

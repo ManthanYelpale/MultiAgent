@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
-  ExternalLink,
   TrendingUp,
   CheckCircle2,
 } from "lucide-react";

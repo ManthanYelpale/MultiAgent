@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Mail, Lock, User, ShieldCheck, ShieldAlert, CheckCircle2, Loader2, LogOut } from "lucide-react";
+import { Mail, Lock, User, ShieldAlert, CheckCircle2, Loader2 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
