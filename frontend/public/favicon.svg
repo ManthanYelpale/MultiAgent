@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4F46E5" />
+      <stop offset="100%" stop-color="#9333EA" />
+    </linearGradient>
+  </defs>
+  <!-- Rounded Background -->
+  <rect width="512" height="512" rx="128" fill="url(#grad)" />
+  <!-- Stylized I / Spark Logo -->
+  <path d="M256 120 C256 185 280 232 345 256 C280 280 256 327 256 392 C256 327 232 280 167 256 C232 232 256 185 256 120 Z" fill="#FFFFFF" />
+  <circle cx="256" cy="256" r="32" fill="#FFFFFF" opacity="0.9" />
+</svg>
