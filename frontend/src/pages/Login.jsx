@@ -143,11 +143,204 @@ export default function Login() {
   }
 
 
+  // Shared form markup, reused by both the desktop slider and the mobile stacked layout
+  // so the two never drift apart.
+  const signUpForm = signupSuccess ? (
+    <div className="flex flex-col items-center justify-center h-full px-10 text-center">
+      <div className="h-14 w-14 bg-emerald-50 border border-emerald-200 text-emerald-600 rounded-full flex items-center justify-center mb-4">
+        <CheckCircle2 size={32} />
+      </div>
+      <h2 className="text-xl font-bold text-slate-900 mb-1">Account Created!</h2>
+      <p className="text-slate-500 text-xs leading-relaxed max-w-xs mb-4">
+        Welcome, <span className="font-semibold text-slate-800">{signupData.fullName}</span>. Redirecting to login...
+      </p>
+    </div>
+  ) : (
+    <form onSubmit={handleSignupSubmit} className="bg-white flex flex-col items-center justify-center px-8 sm:px-14 h-full text-center">
+      <h1 className="text-3xl font-extrabold text-slate-900 mb-1">Create Account</h1>
+      <p className="text-xs text-slate-400 mb-5">Use your email for registration</p>
+
+      {signupApiError && (
+        <div className="w-full mb-3 p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs font-medium text-left">
+          {signupApiError}
+        </div>
+      )}
+
+      <div className="w-full space-y-3">
+        <div>
+          <div className="relative">
+            <User size={18} className="absolute left-3.5 top-3.5 text-slate-400" />
+            <input
+              type="text"
+              name="fullName"
+              placeholder="Full Name"
+              value={signupData.fullName}
+              onChange={handleSignupChange}
+              className="w-full bg-slate-100 border-0 rounded-xl py-3 pl-10 pr-4 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300"
+            />
+          </div>
+          {signupErrors.fullName && <p className="text-[11px] text-red-500 text-left mt-1 ml-1">{signupErrors.fullName}</p>}
+        </div>
+
+        <div>
+          <div className="relative">
+            <Mail size={18} className="absolute left-3.5 top-3.5 text-slate-400" />
+            <input
+              type="email"
+              name="email"
+              placeholder="Email"
+              value={signupData.email}
+              onChange={handleSignupChange}
+              className="w-full bg-slate-100 border-0 rounded-xl py-3 pl-10 pr-4 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300"
+            />
+          </div>
+          {signupErrors.email && <p className="text-[11px] text-red-500 text-left mt-1 ml-1">{signupErrors.email}</p>}
+        </div>
+
+        <div>
+          <div className="relative">
+            <Lock size={18} className="absolute left-3.5 top-3.5 text-slate-400" />
+            <input
+              type="password"
+              name="password"
+              placeholder="Password"
+              value={signupData.password}
+              onChange={handleSignupChange}
+              className="w-full bg-slate-100 border-0 rounded-xl py-3 pl-10 pr-4 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300"
+            />
+          </div>
+          {signupErrors.password && <p className="text-[11px] text-red-500 text-left mt-1 ml-1">{signupErrors.password}</p>}
+        </div>
+
+        <div>
+          <div className="relative">
+            <Lock size={18} className="absolute left-3.5 top-3.5 text-slate-400" />
+            <input
+              type="password"
+              name="confirmPassword"
+              placeholder="Confirm Password"
+              value={signupData.confirmPassword}
+              onChange={handleSignupChange}
+              className="w-full bg-slate-100 border-0 rounded-xl py-3 pl-10 pr-4 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300"
+            />
+          </div>
+          {signupErrors.confirmPassword && <p className="text-[11px] text-red-500 text-left mt-1 ml-1">{signupErrors.confirmPassword}</p>}
+        </div>
+      </div>
+
+      <button
+        type="submit"
+        disabled={isSignupSubmitting}
+        className="mt-6 rounded-full border border-[#FF4B2B] bg-[#FF4B2B] text-white text-xs font-bold py-3.5 px-12 tracking-widest uppercase transition-transform duration-80 active:scale-95 hover:bg-[#ff3b19] disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer shadow-md hover:shadow-lg"
+      >
+        {isSignupSubmitting ? <Loader2 size={16} className="animate-spin" /> : "Sign Up"}
+      </button>
+    </form>
+  );
+
+  const signInForm = (
+    <form onSubmit={handleLoginSubmit} className="bg-white flex flex-col items-center justify-center px-8 sm:px-14 h-full text-center">
+      <h1 className="text-3xl font-extrabold text-slate-900 mb-1">Sign In</h1>
+      <p className="text-xs text-slate-400 mb-6">Enter your account credentials</p>
+
+      {sessionExpired && !loginApiError && (
+        <div className="w-full mb-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-xs font-medium text-left">
+          Your session expired. Please sign in again.
+        </div>
+      )}
+
+      {loginApiError && (
+        <div className="w-full mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs font-medium text-left flex items-center gap-2">
+          <ShieldAlert size={16} className="shrink-0" />
+          <span>{loginApiError}</span>
+        </div>
+      )}
+
+      <div className="w-full space-y-4">
+        <div>
+          <div className="relative">
+            <Mail size={18} className="absolute left-3.5 top-3.5 text-slate-400" />
+            <input
+              type="email"
+              name="email"
+              placeholder="Email"
+              value={loginData.email}
+              onChange={handleLoginChange}
+              className="w-full bg-slate-100 border-0 rounded-xl py-3 pl-10 pr-4 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300"
+            />
+          </div>
+          {loginErrors.email && <p className="text-[11px] text-red-500 text-left mt-1 ml-1">{loginErrors.email}</p>}
+        </div>
+
+        <div>
+          <div className="relative">
+            <Lock size={18} className="absolute left-3.5 top-3.5 text-slate-400" />
+            <input
+              type="password"
+              name="password"
+              placeholder="Password"
+              value={loginData.password}
+              onChange={handleLoginChange}
+              className="w-full bg-slate-100 border-0 rounded-xl py-3 pl-10 pr-4 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300"
+            />
+          </div>
+          {loginErrors.password && <p className="text-[11px] text-red-500 text-left mt-1 ml-1">{loginErrors.password}</p>}
+        </div>
+      </div>
+
+      <button type="button" className="text-xs text-slate-500 hover:text-slate-800 my-4 focus:outline-none font-medium">
+        Forgot your password?
+      </button>
+
+      <button
+        type="submit"
+        disabled={isLoginSubmitting}
+        className="rounded-full border border-[#FF4B2B] bg-[#FF4B2B] text-white text-xs font-bold py-3.5 px-12 tracking-widest uppercase transition-transform duration-80 active:scale-95 hover:bg-[#ff3b19] disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer shadow-md hover:shadow-lg"
+      >
+        {isLoginSubmitting ? <Loader2 size={16} className="animate-spin" /> : "Sign In"}
+      </button>
+    </form>
+  );
+
   return (
     <div className="w-full flex justify-center items-center py-6 px-4">
-      {/* Sliding Double Container */}
+      {/* ── Mobile stacked layout (< md): single full-width card, no sliding overlay ── */}
+      <div className="md:hidden w-full max-w-md bg-white rounded-2xl shadow-[0_14px_28px_rgba(0,0,0,0.18),0_10px_10px_rgba(0,0,0,0.12)] overflow-hidden">
+        <div className="py-10 min-h-[520px] flex flex-col justify-center">
+          {isRightPanelActive ? signUpForm : signInForm}
+        </div>
+        {!signupSuccess && (
+          <div className="bg-gradient-to-r from-[#FF4B2B] to-[#FF416C] text-white px-8 py-6 text-center">
+            {isRightPanelActive ? (
+              <>
+                <p className="text-sm font-light mb-3">Already have an account?</p>
+                <button
+                  type="button"
+                  onClick={() => togglePanel(false)}
+                  className="rounded-full border-2 border-white bg-transparent text-white text-xs font-bold py-2.5 px-10 tracking-widest uppercase transition-all duration-150 active:scale-95 hover:bg-white hover:text-[#FF4B2B] cursor-pointer"
+                >
+                  Sign In
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-light mb-3">Don&apos;t have an account?</p>
+                <button
+                  type="button"
+                  onClick={() => togglePanel(true)}
+                  className="rounded-full border-2 border-white bg-transparent text-white text-xs font-bold py-2.5 px-10 tracking-widest uppercase transition-all duration-150 active:scale-95 hover:bg-white hover:text-[#FF4B2B] cursor-pointer"
+                >
+                  Sign Up
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Desktop Sliding Double Container (md+): unchanged original UI ── */}
       <div
-        className={`relative bg-white rounded-2xl shadow-[0_14px_28px_rgba(0,0,0,0.18),0_10px_10px_rgba(0,0,0,0.12)] overflow-hidden w-[1000px] max-w-full min-h-[580px] transition-all duration-600`}
+        className={`hidden md:block relative bg-white rounded-2xl shadow-[0_14px_28px_rgba(0,0,0,0.18),0_10px_10px_rgba(0,0,0,0.12)] overflow-hidden w-[1000px] max-w-full min-h-[580px] transition-all duration-600`}
       >
         {/* Sign Up Container (Left side when active) */}
         <div
@@ -157,98 +350,7 @@ export default function Login() {
               : "opacity-0 z-1 pointer-events-none"
           }`}
         >
-          {signupSuccess ? (
-            <div className="flex flex-col items-center justify-center h-full px-10 text-center">
-              <div className="h-14 w-14 bg-emerald-50 border border-emerald-200 text-emerald-600 rounded-full flex items-center justify-center mb-4">
-                <CheckCircle2 size={32} />
-              </div>
-              <h2 className="text-xl font-bold text-slate-900 mb-1">Account Created!</h2>
-              <p className="text-slate-500 text-xs leading-relaxed max-w-xs mb-4">
-                Welcome, <span className="font-semibold text-slate-800">{signupData.fullName}</span>. Redirecting to login...
-              </p>
-            </div>
-          ) : (
-            <form onSubmit={handleSignupSubmit} className="bg-white flex flex-col items-center justify-center px-10 sm:px-14 h-full text-center">
-              <h1 className="text-3xl font-extrabold text-slate-900 mb-1">Create Account</h1>
-              <p className="text-xs text-slate-400 mb-5">Use your email for registration</p>
-
-              {signupApiError && (
-                <div className="w-full mb-3 p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs font-medium text-left">
-                  {signupApiError}
-                </div>
-              )}
-
-              <div className="w-full space-y-3">
-                <div>
-                  <div className="relative">
-                    <User size={18} className="absolute left-3.5 top-3.5 text-slate-400" />
-                    <input
-                      type="text"
-                      name="fullName"
-                      placeholder="Full Name"
-                      value={signupData.fullName}
-                      onChange={handleSignupChange}
-                      className="w-full bg-slate-100 border-0 rounded-xl py-3 pl-10 pr-4 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300"
-                    />
-                  </div>
-                  {signupErrors.fullName && <p className="text-[11px] text-red-500 text-left mt-1 ml-1">{signupErrors.fullName}</p>}
-                </div>
-
-                <div>
-                  <div className="relative">
-                    <Mail size={18} className="absolute left-3.5 top-3.5 text-slate-400" />
-                    <input
-                      type="email"
-                      name="email"
-                      placeholder="Email"
-                      value={signupData.email}
-                      onChange={handleSignupChange}
-                      className="w-full bg-slate-100 border-0 rounded-xl py-3 pl-10 pr-4 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300"
-                    />
-                  </div>
-                  {signupErrors.email && <p className="text-[11px] text-red-500 text-left mt-1 ml-1">{signupErrors.email}</p>}
-                </div>
-
-                <div>
-                  <div className="relative">
-                    <Lock size={18} className="absolute left-3.5 top-3.5 text-slate-400" />
-                    <input
-                      type="password"
-                      name="password"
-                      placeholder="Password"
-                      value={signupData.password}
-                      onChange={handleSignupChange}
-                      className="w-full bg-slate-100 border-0 rounded-xl py-3 pl-10 pr-4 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300"
-                    />
-                  </div>
-                  {signupErrors.password && <p className="text-[11px] text-red-500 text-left mt-1 ml-1">{signupErrors.password}</p>}
-                </div>
-
-                <div>
-                  <div className="relative">
-                    <Lock size={18} className="absolute left-3.5 top-3.5 text-slate-400" />
-                    <input
-                      type="password"
-                      name="confirmPassword"
-                      placeholder="Confirm Password"
-                      value={signupData.confirmPassword}
-                      onChange={handleSignupChange}
-                      className="w-full bg-slate-100 border-0 rounded-xl py-3 pl-10 pr-4 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300"
-                    />
-                  </div>
-                  {signupErrors.confirmPassword && <p className="text-[11px] text-red-500 text-left mt-1 ml-1">{signupErrors.confirmPassword}</p>}
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={isSignupSubmitting}
-                className="mt-6 rounded-full border border-[#FF4B2B] bg-[#FF4B2B] text-white text-xs font-bold py-3.5 px-12 tracking-widest uppercase transition-transform duration-80 active:scale-95 hover:bg-[#ff3b19] disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer shadow-md hover:shadow-lg"
-              >
-                {isSignupSubmitting ? <Loader2 size={16} className="animate-spin" /> : "Sign Up"}
-              </button>
-            </form>
-          )}
+          {signUpForm}
         </div>
 
         {/* Sign In Container */}
@@ -257,67 +359,7 @@ export default function Login() {
             isRightPanelActive ? "translate-x-full opacity-0 pointer-events-none" : ""
           }`}
         >
-          <form onSubmit={handleLoginSubmit} className="bg-white flex flex-col items-center justify-center px-10 sm:px-14 h-full text-center">
-            <h1 className="text-3xl font-extrabold text-slate-900 mb-1">Sign In</h1>
-            <p className="text-xs text-slate-400 mb-6">Enter your account credentials</p>
-
-            {sessionExpired && !loginApiError && (
-              <div className="w-full mb-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-xs font-medium text-left">
-                Your session expired. Please sign in again.
-              </div>
-            )}
-
-            {loginApiError && (
-              <div className="w-full mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs font-medium text-left flex items-center gap-2">
-                <ShieldAlert size={16} className="shrink-0" />
-                <span>{loginApiError}</span>
-              </div>
-            )}
-
-            <div className="w-full space-y-4">
-              <div>
-                <div className="relative">
-                  <Mail size={18} className="absolute left-3.5 top-3.5 text-slate-400" />
-                  <input
-                    type="email"
-                    name="email"
-                    placeholder="Email"
-                    value={loginData.email}
-                    onChange={handleLoginChange}
-                    className="w-full bg-slate-100 border-0 rounded-xl py-3 pl-10 pr-4 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300"
-                  />
-                </div>
-                {loginErrors.email && <p className="text-[11px] text-red-500 text-left mt-1 ml-1">{loginErrors.email}</p>}
-              </div>
-
-              <div>
-                <div className="relative">
-                  <Lock size={18} className="absolute left-3.5 top-3.5 text-slate-400" />
-                  <input
-                    type="password"
-                    name="password"
-                    placeholder="Password"
-                    value={loginData.password}
-                    onChange={handleLoginChange}
-                    className="w-full bg-slate-100 border-0 rounded-xl py-3 pl-10 pr-4 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300"
-                  />
-                </div>
-                {loginErrors.password && <p className="text-[11px] text-red-500 text-left mt-1 ml-1">{loginErrors.password}</p>}
-              </div>
-            </div>
-
-            <button type="button" className="text-xs text-slate-500 hover:text-slate-800 my-4 focus:outline-none font-medium">
-              Forgot your password?
-            </button>
-
-            <button
-              type="submit"
-              disabled={isLoginSubmitting}
-              className="rounded-full border border-[#FF4B2B] bg-[#FF4B2B] text-white text-xs font-bold py-3.5 px-12 tracking-widest uppercase transition-transform duration-80 active:scale-95 hover:bg-[#ff3b19] disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer shadow-md hover:shadow-lg"
-            >
-              {isLoginSubmitting ? <Loader2 size={16} className="animate-spin" /> : "Sign In"}
-            </button>
-          </form>
+          {signInForm}
         </div>
 
         {/* Overlay Container (Sliding Cover) */}
